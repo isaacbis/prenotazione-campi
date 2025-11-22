@@ -1,8 +1,8 @@
 /* =========================================================
-   STYLE.CSS - Prenotazione campi (mobile first)
+   STYLE.CSS - Prenotazione Campi (mobile first)
    ========================================================= */
 
-/* RESET / BASE ------------------------------------------- */
+/* RESET BASE ------------------------------------------------ */
 *,
 *::before,
 *::after {
@@ -13,26 +13,45 @@
 
 html {
   scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   min-height: 100vh;
-  margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, Arial, sans-serif;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", Roboto, Arial, sans-serif;
+  background:
+    radial-gradient(1000px 800px at 120% -10%, rgba(34, 211, 238, 0.18), transparent 60%),
+    radial-gradient(900px 700px at -15% 110%, rgba(249, 115, 22, 0.16), transparent 65%),
+    #020617;
+  color: #e5e7eb;
   display: flex;
   flex-direction: column;
+  padding: 8px 10px 12px;
 }
 
-/* COLORI E VARIABILI ------------------------------------- */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* FOCUS ACCESSIBILE ---------------------------------------- */
+:focus-visible {
+  outline: 2px solid #22d3ee;
+  outline-offset: 2px;
+  border-radius: 10px;
+}
+
+/* VARIABILI ------------------------------------------------ */
 :root {
   --bg: #020617;
-  --bg-soft: #020617;
   --surface: rgba(15, 23, 42, 0.96);
   --surface-alt: rgba(15, 23, 42, 0.98);
-  --border: rgba(148, 163, 184, 0.65);
+  --border: rgba(148, 163, 184, 0.6);
   --accent: #f97316;
-  --accent-soft: rgba(248, 153, 60, 0.3);
+  --accent-soft: rgba(249, 115, 22, 0.4);
   --accent-2: #22d3ee;
   --text: #e5e7eb;
   --muted: #9ca3af;
@@ -45,12 +64,12 @@ body {
   --radius-sm: 10px;
 
   --tap: 44px;
-  --shadow-soft: 0 16px 40px rgba(0, 0, 0, 0.7);
+  --shadow-soft: 0 16px 40px rgba(0, 0, 0, 0.75);
 }
 
+/* VERSIONE LIGHT (se un giorno la userai) ------------------ */
 html.light {
   --bg: #e5e7eb;
-  --bg-soft: #f3f4f6;
   --surface: #ffffff;
   --surface-alt: #ffffff;
   --border: #d1d5db;
@@ -58,23 +77,14 @@ html.light {
   --muted: #6b7280;
 }
 
-/* SFONDO GENERALE ---------------------------------------- */
-body {
-  background:
-    radial-gradient(1200px 800px at 120% -10%, rgba(34, 211, 238, 0.18), transparent 60%),
-    radial-gradient(900px 700px at -15% 110%, rgba(249, 115, 22, 0.16), transparent 65%),
-    var(--bg-soft);
-  color: var(--text);
-  padding: 8px 10px 12px;
+/* STRUTTURA PRINCIPALE ------------------------------------- */
+main {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  flex: 1;
 }
 
-img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-}
-
-/* LINK GENERICI ------------------------------------------ */
 a {
   color: var(--accent-2);
   text-decoration: none;
@@ -83,51 +93,30 @@ a:hover {
   text-decoration: underline;
 }
 
-/* STRUTTURA PRINCIPALE ----------------------------------- */
-main {
-  width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  flex: 1;
+/* CLASSI UTILI -------------------------------------------- */
+.hidden {
+  display: none !important;
 }
 
-/* CARD BASE (LOGIN / SEZIONI / ADMIN) -------------------- */
-.card,
-.login-container,
-.user-credits,
-.notes-section,
-.date-picker,
-.user-reservations-section,
-.field-box,
-.admin,
-.notification {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
-  padding: 12px 14px;
-}
-
-/* HEADER + LOGOUT + METEO -------------------------------- */
-
+/* HEADER + LOGOUT + METEO --------------------------------- */
 header {
   position: sticky;
   top: 0;
   z-index: 20;
   background: var(--surface-alt);
   border-radius: 0 0 22px 22px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.6);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.65);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.7);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.7);
 }
 
 .header-container {
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
+  padding: 8px 10px 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px 10px 10px;
 }
 
 .header-top {
@@ -135,25 +124,26 @@ header {
   justify-content: flex-end;
 }
 
+/* Bottone ESCI allineato a destra, non enorme */
 .logout {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 6px 10px;
+  padding: 6px 11px;
   min-height: 32px;
   border-radius: 999px;
   border: 1px solid #020617;
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
   text-decoration: none;
   color: #f9fafb;
   background: linear-gradient(135deg, #0f172a, #020617);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.85);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.9);
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }
 
 .logout i {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
 .logout:active {
@@ -161,8 +151,7 @@ header {
   box-shadow: none;
 }
 
-/* METEO ORARIO ------------------------------------------- */
-
+/* METEO ORARIO (chip piccoli) ----------------------------- */
 .hourly-weather {
   display: flex;
   flex-wrap: wrap;
@@ -172,11 +161,11 @@ header {
 
 .hour-chip {
   flex: 0 0 auto;
-  min-width: 42px;
+  min-width: 40px;
   padding: 4px 6px;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.7);
-  background: rgba(15, 23, 42, 0.96);
+  background: rgba(15, 23, 42, 0.98);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -192,8 +181,7 @@ header {
   font-size: 0.65rem;
   font-weight: 700;
   margin-top: 1px;
-  opacity: 0.9;
-  text-transform: capitalize;
+  text-transform: lowercase;
 }
 
 .hour-chip.today {
@@ -201,18 +189,18 @@ header {
   box-shadow: 0 0 12px var(--accent-soft);
 }
 
-/* IMMAGINI NELLA HEADER (DOPO LOGIN) --------------------- */
+/* IMMAGINI DOPO LOGIN (IN COLONNA, PICCOLE SU MOBILE) ----- */
 #app-images-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: column; /* colonna su mobile */
   gap: 6px;
   margin-top: 4px;
 }
 
 #app-images-container a img {
-  width: 42px;               /* mobile: grandezza simile al meteo */
+  width: 42px; /* circa come le chip del meteo */
   border-radius: 18px;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
 }
 
 @media (min-width: 480px) {
@@ -224,8 +212,7 @@ header {
   }
 }
 
-/* LOGIN -------------------------------------------------- */
-
+/* LOGIN --------------------------------------------------- */
 #login-area {
   display: flex;
   align-items: center;
@@ -237,6 +224,11 @@ header {
   width: 100%;
   max-width: 420px;
   margin: 0 auto;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  padding: 12px 14px;
 }
 
 .login-form {
@@ -248,7 +240,6 @@ header {
 
 .login-form h1 {
   font-size: 1.5rem;
-  margin-bottom: 4px;
 }
 
 .login-form p {
@@ -256,20 +247,21 @@ header {
   color: var(--muted);
 }
 
+/* Immagini login sopra/sotto */
 #login-images-container-top,
 #login-images-container-bottom {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 #login-images-container-top img,
 #login-images-container-bottom img {
   width: 64px;
   border-radius: 16px;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.55);
 }
 
 @media (max-width: 480px) {
@@ -283,10 +275,10 @@ header {
   width: 100%;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  padding: 12px 14px;
+  padding: 11px 13px;
   background: #020617;
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: 0.94rem;
 }
 
 .login-form input::placeholder {
@@ -308,7 +300,7 @@ header {
   letter-spacing: 0.02em;
   background: linear-gradient(135deg, #f97316, #facc15);
   color: #111827;
-  box-shadow: 0 14px 26px rgba(248, 153, 60, 0.6);
+  box-shadow: 0 14px 26px rgba(248, 153, 60, 0.7);
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }
@@ -318,8 +310,7 @@ header {
   box-shadow: none;
 }
 
-/* BOTTONI / CERCHI CREDITI -------------------------------- */
-
+/* BOTTONI GENERICI / CREDITI ----------------------------- */
 button {
   font-family: inherit;
 }
@@ -329,21 +320,21 @@ button {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .circle-button {
-  min-height: 40px;
-  padding-inline: 0;
+  width: 46px;
+  height: 46px;
   border-radius: 999px;
   border: none;
-  width: 60px;
   background: linear-gradient(135deg, #f97316, #facc15);
   color: #111827;
   font-weight: 800;
   font-size: 0.9rem;
   box-shadow: 0 10px 22px rgba(248, 153, 60, 0.55);
   cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }
 
 .circle-button:active {
@@ -351,19 +342,12 @@ button {
   box-shadow: none;
 }
 
-.buy-credits-section,
-#buy-credits-section {
-  margin-top: 10px;
-}
-
 /* AREA APP UTENTE ---------------------------------------- */
-
 #app-area {
   margin-top: 10px;
 }
 
-/* CREDITI UTENTE + PRENOTAZIONI RIASSUNTO ---------------- */
-
+/* CREDITI UTENTE / PRENOTAZIONI RIASSUNTO ---------------- */
 #user-credits-section {
   margin: 10px 0;
 }
@@ -373,8 +357,7 @@ button {
   padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background:
-    radial-gradient(circle at top left, rgba(248, 250, 252, 0.18), transparent 55%),
+  background: radial-gradient(circle at top left, rgba(248, 250, 252, 0.18), transparent 60%),
     #020617;
   font-weight: 800;
   font-size: 0.95rem;
@@ -382,18 +365,22 @@ button {
 }
 
 .user-reservations-section {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 #user-reservations {
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   color: var(--muted);
 }
 
 /* AVVISI / NOTE ------------------------------------------ */
-
 .notes-section {
   margin-top: 12px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  padding: 10px 12px;
 }
 
 .notes-section h2 {
@@ -414,15 +401,19 @@ button {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   padding: 8px 10px;
-  background: rgba(15, 23, 42, 0.94);
+  background: rgba(15, 23, 42, 0.96);
   color: var(--text);
   font-size: 0.86rem;
 }
 
-/* DATA PRENOTAZIONE -------------------------------------- */
-
+/* DATA PICKER -------------------------------------------- */
 .date-picker {
   margin-top: 14px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  padding: 10px 12px;
   text-align: center;
 }
 
@@ -445,7 +436,6 @@ button {
 }
 
 /* CAMPI & SLOT ------------------------------------------- */
-
 .fields-container {
   margin-top: 12px;
   display: grid;
@@ -453,46 +443,60 @@ button {
   gap: 10px;
 }
 
-@media (min-width: 480px) {
+@media (min-width: 520px) {
   .fields-container {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 .field-box {
-  padding: 10px 10px 12px;
+  background: var(--surface);
   border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  padding: 10px 10px 12px;
 }
 
+/* TITOLO CAMPO = TENDINA --------------------------------- */
 .field-box h3 {
-  font-size: 1rem;
-  margin-bottom: 6px;
+  font-size: 0.98rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  cursor: pointer;
 }
 
+.field-box h3::after {
+  content: "˅";
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-left: 8px;
+}
+
+/* CONTENITORE SLOT SCORREVOLE ---------------------------- */
 .slot-info {
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  max-height: 60vh;
+  max-height: 55vh;
   overflow-y: auto;
   padding-right: 2px;
 }
 
+/* OGNI SLOT ---------------------------------------------- */
 .slot {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   min-height: 40px;
-  padding: 8px 10px;
+  padding: 7px 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.86rem;
+  font-size: 0.85rem;
   font-weight: 700;
   text-align: center;
-  background: rgba(15, 23, 42, 0.96);
+  background: rgba(15, 23, 42, 0.98);
   color: var(--text);
 }
 
@@ -505,8 +509,8 @@ button {
   background:
     repeating-linear-gradient(
       135deg,
-      rgba(248, 113, 113, 0.14) 0 8px,
-      rgba(127, 29, 29, 0.28) 8px 16px
+      rgba(248, 113, 113, 0.16) 0 8px,
+      rgba(127, 29, 29, 0.3) 8px 16px
     ),
     #111827;
   color: #fecaca;
@@ -522,51 +526,69 @@ button {
     0 0 24px rgba(250, 204, 21, 0.5);
 }
 
-/* AREA ADMIN --------------------------------------------- */
-
+/* SEZIONE ADMIN (TENDINE) -------------------------------- */
 #admin-area {
   display: none;
   margin-top: 16px;
 }
 
+/* Quando il body ha admin-visible, nascondo roba utente */
+body.admin-visible header,
+body.admin-visible #app-area,
+body.admin-visible #user-credits-section,
+body.admin-visible .user-reservations-section,
+body.admin-visible .notes-section,
+body.admin-visible .buy-credits-section {
+  display: none;
+}
+
+body.admin-visible #admin-area {
+  display: block;
+}
+
+/* BOX ADMIN ---------------------------------------------- */
 .admin {
-  margin-bottom: 14px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  padding: 10px 12px;
+  margin-bottom: 12px;
 }
 
-.admin h2 {
+/* TITOLO ADMIN = TENDINA --------------------------------- */
+.admin-toggle {
   font-size: 0.98rem;
-  margin-bottom: 6px;
-}
-
-.admin h3 {
-  font-size: 0.9rem;
-  margin: 8px 0 4px;
-}
-
-.parametri-prenotazioni,
-.gestione-campi,
-.image-admin-form {
-  margin-top: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
 }
 
+.admin-toggle::after {
+  content: "˅";
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin-left: 8px;
+}
+
+/* CONTENITORI SCORREVOLE PER TABELLE ADMIN --------------- */
 .scrollable-box {
-  max-height: 55vh;
+  margin-top: 8px;
+  max-height: 60vh;
   overflow: auto;
   border-radius: var(--radius-md);
   border: 1px solid rgba(148, 163, 184, 0.4);
   padding: 6px;
-  background: rgba(15, 23, 42, 0.88);
+  background: rgba(15, 23, 42, 0.96);
 }
 
-/* Tabelle admin (prenotazioni / crediti / utenti) -------- */
-
+/* TABELLE ADMIN ------------------------------------------ */
 .admin table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
 }
 
 .admin th,
@@ -581,9 +603,10 @@ button {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: rgba(15, 23, 42, 0.98);
+  background: rgba(15, 23, 42, 1);
 }
 
+/* INPUT / SELECT / TEXTAREA ADMIN ------------------------ */
 .admin input,
 .admin select,
 .admin textarea {
@@ -591,12 +614,14 @@ button {
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   padding: 7px 8px;
-  background: rgba(15, 23, 42, 0.95);
+  background: rgba(15, 23, 42, 0.98);
   color: var(--text);
   font-size: 0.8rem;
 }
 
-.admin table button {
+/* Bottoni nelle tabelle admin ---------------------------- */
+.admin table button,
+.admin #credits-table button {
   min-height: 26px;
   padding: 4px 6px;
   font-size: 0.62rem;
@@ -608,6 +633,10 @@ button {
 }
 
 /* FORM IMMAGINI LOGIN (ADMIN) ---------------------------- */
+.image-admin-form h3 {
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
 
 .image-admin-form label {
   display: block;
@@ -633,8 +662,7 @@ button {
   }
 }
 
-/* NOTIFICHE --------------------------------------------- */
-
+/* NOTIFICHE ---------------------------------------------- */
 #notification-container {
   position: fixed;
   top: 10px;
@@ -643,8 +671,13 @@ button {
 }
 
 .notification {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
   margin-bottom: 8px;
   font-size: 0.8rem;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.75);
 }
 
 .notification.success {
@@ -671,29 +704,7 @@ button {
   content: "⚠️ ";
 }
 
-/* MODALITÀ ADMIN-VISIBLE --------------------------------- */
-
-/* Quando fai login da admin, lo script aggiunge body.admin-visible */
-body.admin-visible header,
-body.admin-visible .hourly-weather,
-body.admin-visible #app-images-container,
-body.admin-visible .buy-credits-section,
-body.admin-visible #user-credits-section,
-body.admin-visible .user-reservations-section,
-body.admin-visible .notes-section {
-  display: none;
-}
-
-body.admin-visible #admin-area {
-  display: block;
-}
-
-body.admin-visible main {
-  max-width: 640px;
-}
-
-/* RESPONSIVE EXTRA -------------------------------------- */
-
+/* RESPONSIVE EXTRA --------------------------------------- */
 @media (min-width: 768px) {
   main {
     max-width: 640px;
