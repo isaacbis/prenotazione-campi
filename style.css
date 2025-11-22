@@ -1040,3 +1040,13 @@ body {
 .admin h2 {
   font-size: 0.95rem;
 }
+/* Rendi visibile la sezione Avvisi anche in modalità admin */
+body.admin-visible .notes-section {
+  display: block !important;
+}
+
+/* Se vuoi tenerla ben centrata anche in admin */
+body.admin-visible .notes-section {
+  margin-top: 10px;
+  text-align: center;
+}
