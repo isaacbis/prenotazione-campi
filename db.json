@@ -1,0 +1,34 @@
+{
+  "users": {
+    "admin": {
+      "password": "admin",
+      "role": "admin",
+      "credits": 0,
+      "disabled": false,
+      "failedAttempts": 0
+    }
+  },
+  "reservations": [],
+  "pastReservations": [],
+  "admin": {
+    "notes": "",
+    "images": {},
+    "config": {
+      "maxBookingsPerUser": 2
+    },
+    "fields": [
+      {
+        "id": "BeachVolley",
+        "name": "Beach Volley"
+      },
+      {
+        "id": "Calcio",
+        "name": "Beach Soccer"
+      },
+      {
+        "id": "Multi",
+        "name": "Multi-Sport"
+      }
+    ]
+  }
+}
