@@ -1,9 +1,10 @@
+// --- API EXPRESS ---
 const API_BASE = ""; // stessa origine: /api/...
 
 async function apiGet(path) {
   const res = await fetch(API_BASE + path);
   if (!res.ok) {
-    let text = await res.text().catch(() => "");
+    const text = await res.text().catch(() => "");
     throw new Error(`GET ${path} -> ${res.status} ${text}`);
   }
   return res.json();
@@ -16,7 +17,7 @@ async function apiPost(path, body) {
     body: JSON.stringify(body)
   });
   if (!res.ok) {
-    let text = await res.text().catch(() => "");
+    const text = await res.text().catch(() => "");
     throw new Error(`POST ${path} -> ${res.status} ${text}`);
   }
   return res.json();
@@ -29,8 +30,21 @@ async function apiPatch(path, body) {
     body: JSON.stringify(body)
   });
   if (!res.ok) {
-    let text = await res.text().catch(() => "");
+    const text = await res.text().catch(() => "");
     throw new Error(`PATCH ${path} -> ${res.status} ${text}`);
+  }
+  return res.json();
+}
+
+async function apiPut(path, body) {
+  const res = await fetch(API_BASE + path, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`PUT ${path} -> ${res.status} ${text}`);
   }
   return res.json();
 }
@@ -38,25 +52,20 @@ async function apiPatch(path, body) {
 async function apiDelete(path) {
   const res = await fetch(API_BASE + path, { method: "DELETE" });
   if (!res.ok) {
-    let text = await res.text().catch(() => "");
+    const text = await res.text().catch(() => "");
     throw new Error(`DELETE ${path} -> ${res.status} ${text}`);
   }
   return res.json();
 }
 
-
 /***********************
  *  VARIABILI GLOBALI
  ***********************/
 let currentUser = null;
-let userCreditsListenerUnsubscribe = null;
-let adminCreditsListenerUnsubscribe = null;
-let userReservationsUnsubscribe = null;
-
 
 // Parametri dinamici
-let maxBookingsPerUser = 2; // Predefinito, si aggiorna da Firestore
-let fieldsList = [];        // Lista campi, si aggiorna da Firestore
+let maxBookingsPerUser = 2;
+let fieldsList = [];        // Lista campi dal server
 
 // Struttura prenotazioni per la data selezionata
 let reservations = {};
@@ -89,6 +98,7 @@ function getSelectedDate() {
 /* Notifica con tipologia opzionale: "success" | "error" | "warn" | "info" */
 function showNotification(message, type = "info") {
   const container = document.getElementById('notification-container');
+  if (!container) return;
   const notification = document.createElement('div');
   notification.classList.add('notification');
   if (["success","error","warn"].includes(type)) notification.classList.add(type);
@@ -104,19 +114,19 @@ const METEO_LAT = 43.72;
 const METEO_LON = 13.22;
 
 function weatherCodeToEmoji(code){
-  if ([0].includes(code)) return "☀️";                 // sereno
-  if ([1,2].includes(code)) return "🌤️";              // poco/parz. nuvoloso
-  if ([3].includes(code)) return "☁️";                 // coperto
-  if ([45,48].includes(code)) return "🌫️";            // nebbia
-  if ([51,53,55].includes(code)) return "🌦️";         // pioviggine
-  if ([56,57].includes(code)) return "🌧️";            // pioggerella gelata
-  if ([61,63,65].includes(code)) return "🌧️";         // pioggia
-  if ([66,67].includes(code)) return "🌧️";            // pioggia gelata
-  if ([71,73,75].includes(code)) return "❄️";         // neve
-  if ([77].includes(code)) return "🌨️";               // granuli di neve
-  if ([80,81,82].includes(code)) return "🌦️";         // rovesci
-  if ([85,86].includes(code)) return "🌨️";            // rovesci di neve
-  if ([95,96,99].includes(code)) return "⛈️";          // temporale (anche con grandine)
+  if ([0].includes(code)) return "☀️";
+  if ([1,2].includes(code)) return "🌤️";
+  if ([3].includes(code)) return "☁️";
+  if ([45,48].includes(code)) return "🌫️";
+  if ([51,53,55].includes(code)) return "🌦️";
+  if ([56,57].includes(code)) return "🌧️";
+  if ([61,63,65].includes(code)) return "🌧️";
+  if ([66,67].includes(code)) return "🌧️";
+  if ([71,73,75].includes(code)) return "❄️";
+  if ([77].includes(code)) return "🌨️";
+  if ([80,81,82].includes(code)) return "🌦️";
+  if ([85,86].includes(code)) return "🌨️";
+  if ([95,96,99].includes(code)) return "⛈️";
   return "❔";
 }
 function weekdayShort(dateStr){
@@ -124,7 +134,7 @@ function weekdayShort(dateStr){
   return d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '');
 }
 async function loadDailyWeather(days=6){
-  const el = document.getElementById('weather-forecast'); // container nel header
+  const el = document.getElementById('weather-forecast');
   if (!el) return;
 
   try{
@@ -139,7 +149,7 @@ async function loadDailyWeather(days=6){
       const day = time[i];
       const code = weathercode[i];
       const chip = document.createElement('div');
-      chip.className = 'hour-chip'; // riuso lo stile compatto già esistente
+      chip.className = 'hour-chip';
       chip.title = day;
 
       const emEl = document.createElement('div');
@@ -156,7 +166,6 @@ async function loadDailyWeather(days=6){
     }
   }catch(err){
     console.error("Meteo errore:", err);
-    // fallback minimale
     el.innerHTML = '';
     const chip = document.createElement('div');
     chip.className = 'hour-chip';
@@ -166,258 +175,8 @@ async function loadDailyWeather(days=6){
 }
 
 /***********************
- *  LISTENER CREDITI
+ *  CREDITI UTENTE & ADMIN
  ***********************/
-function startUserCreditsListener() {
-  if (!currentUser) return;
-  if (userCreditsListenerUnsubscribe) userCreditsListenerUnsubscribe();
-
-  userCreditsListenerUnsubscribe = db.collection("users").doc(currentUser.username)
-    .onSnapshot(doc => {
-      if (doc.exists) {
-        const credits = doc.data().credits !== undefined ? doc.data().credits : 0;
-        document.getElementById("user-credits").textContent = `Crediti: ${credits}`;
-      }
-    });
-}
-function updateUserCreditsUI() {
-  if (!currentUser) return;
-  db.collection("users").doc(currentUser.username).get().then(doc => {
-    if (doc.exists) {
-      const credits = doc.data().credits !== undefined ? doc.data().credits : 0;
-      document.getElementById("user-credits").textContent = `Crediti: ${credits}`;
-    }
-  });
-}
-function startAdminCreditsListener() {
-  const tbody = document.getElementById('credits-table');
-  if (!tbody) return;
-  if (adminCreditsListenerUnsubscribe) adminCreditsListenerUnsubscribe();
-
-  adminCreditsListenerUnsubscribe = db.collection("users").onSnapshot(snapshot => {
-    const docsArray = [];
-    snapshot.forEach(doc => docsArray.push(doc));
-
-    // Ordina per numero in "ombrelloneXX" o "userXX"
-    docsArray.sort((a, b) => {
-      const getNum = (id) => {
-        const lower = id.toLowerCase();
-        if (lower.startsWith("ombrellone")) {
-          const numStr = id.slice("ombrellone".length);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else if (lower.startsWith("user")) {
-          const numStr = id.slice(4);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else {
-          return 999999;
-        }
-      };
-      return getNum(a.id) - getNum(b.id);
-    });
-
-    tbody.innerHTML = '';
-    docsArray.forEach(doc => {
-      const data = doc.data();
-      const username = doc.id;
-      const credits = data.credits !== undefined ? data.credits : 0;
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${username}</td>
-        <td id="credits-${username}">${credits}</td>
-        <td>
-          <button onclick="modifyUserCredits('${username}', 1)">+</button>
-          <button onclick="modifyUserCredits('${username}', -1)">-</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  });
-}
-function modifyUserCredits(username, delta) {
-  const userRef = db.collection("users").doc(username);
-  userRef.get().then(doc => {
-    let credits = doc.data().credits !== undefined ? doc.data().credits : 0;
-    let newCredits = credits + delta;
-    if (newCredits < 0) newCredits = 0;
-    userRef.update({ credits: newCredits })
-      .then(() => showNotification(`Crediti aggiornati per ${username}: ${newCredits}`, "success"));
-  });
-}
-
-/***********************
- *  LOGIN & LOGOUT
- ***********************/
-function login() {
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value.trim();
-  if (!username || !password) {
-    showNotification('Inserisci username e password.', "warn");
-    return;
-  }
-  authenticateUserFromFirestore(username, password);
-}
-function authenticateUserFromFirestore(username, password) {
-  apiPost("/api/login", { username, password })
-    .then(data => {
-      currentUser = {
-        username: data.username,
-        role: data.role || "user"
-      };
-
-      toggleSections(true);
-      toggleAdminSection();
-      showNotification(`Benvenuto, ${data.username}!`, "success");
-
-      // carica prenotazioni e meteo
-      loadReservationsFromFirestore();   // (vedi nuova versione sotto)
-      checkAndResetAfterSevenFifty();
-      loadDailyWeather(6);
-
-      // crediti
-      updateUserCreditsUI();             // nuova versione sotto
-
-      // admin: tabella crediti
-      if (currentUser.role === "admin") {
-        startAdminCreditsListener();     // la riscriviamo sotto
-      }
-
-      setupBuyCreditsButtons();
-    })
-    .catch(async err => {
-      console.error("Errore login:", err);
-      showNotification("Errore durante il login.", "error");
-    });
-}
-function logout() {
-  if (!confirm("Vuoi davvero uscire?")) return;
-  currentUser = null;
-  if (userCreditsListenerUnsubscribe) userCreditsListenerUnsubscribe();
-  if (adminCreditsListenerUnsubscribe) adminCreditsListenerUnsubscribe();
-  if (userReservationsUnsubscribe) userReservationsUnsubscribe();
-
-  toggleSections(false);
-  showNotification("Sei uscito con successo.", "success");
-}
-
-/***********************
- *  FIRESTORE – PRENOTAZIONI
- ***********************/
-function loadReservationsFromFirestore() {
-  const selectedDate = getSelectedDate();
-  reservations = {};
-
-  apiGet(`/api/reservations?date=${selectedDate}`)
-    .then(list => {
-      list.forEach(r => {
-        const field = r.field;
-        const time  = r.time;
-        const user  = r.user;
-
-        if (!reservations[field]) reservations[field] = {};
-        if (!reservations[field][selectedDate]) reservations[field][selectedDate] = {};
-        reservations[field][selectedDate][time] = user;
-      });
-
-      populateAllFields();
-      populateAdminTable();
-    })
-    .catch(err => {
-      console.error("Errore caricamento prenotazioni da server:", err);
-      showNotification("Errore caricamento prenotazioni.", "error");
-    });
-}
-
-// Stub vuoto: non usiamo più realtime Firestore
-function listenRealtimeForDate(selectedDate) {
-  // Non fa nulla con Express (niente realtime)
-}
-
-function saveReservationToFirestore(fieldName, date, time, user, role) {
-  return apiPost("/api/reservations", {
-    field: fieldName,
-    date,
-    time,
-    user,
-    role
-  });
-}
-
-function deleteReservationFromFirestore(fieldName, date, time, user) {
-  const docId = `${fieldName}_${date}_${time}_${user}`;
-  return apiDelete(`/api/reservations/${encodeURIComponent(docId)}`);
-}
-
-async function getUserTotalReservations() {
-  if (!currentUser) return 0;
-  try {
-    const data = await apiGet(`/api/users/${currentUser.username}/reservations/count`);
-    return data.total || 0;
-  } catch (error) {
-    console.error("Errore nel conteggio delle prenotazioni:", error);
-    showNotification("Errore nel conteggio delle prenotazioni.", "error");
-    return 0;
-  }
-}
-
-
-function saveReservation(fieldName, date, slot) {
-  saveReservationToFirestore(
-    fieldName,
-    date,
-    slot,
-    currentUser.username,
-    (currentUser.role === "admin" ? "admin" : "user")
-  )
-    .then(() => {
-      // scala 1 credito se NON è admin
-      if (currentUser.role !== "admin") {
-        return apiPatch(`/api/users/${currentUser.username}/credits`, { delta: -1 })
-          .then(() => updateUserCreditsUI());
-      }
-    })
-    .then(() => {
-      showNotification(`Prenotazione salvata per ${fieldName} alle ${slot}`, "success");
-      loadReservationsFromFirestore();
-    })
-    .catch(err => {
-      console.error("Errore salvataggio prenotazione:", err);
-      showNotification("Errore nel salvataggio della prenotazione.", "error");
-    });
-}
-function cancelUserReservation(fieldName, slot) {
-  const selectedDate = getSelectedDate();
-  const today = getTodayDate();
-
-  if (selectedDate === today) {
-    const confirmCancel = confirm(
-      "Se annulli una prenotazione odierna, il credito non verrà rimborsato. Vuoi procedere?"
-    );
-    if (!confirmCancel) return;
-  }
-
-  deleteReservationFromFirestore(fieldName, selectedDate, slot, currentUser.username)
-    .then(() => {
-      showNotification(
-        `Prenotazione annullata per ${fieldName} alle ${slot} del ${formatDateToDDMMYYYY(selectedDate)}`,
-        "success"
-      );
-
-      // se è una prenotazione futura e non sei admin, restituisci il credito
-      if (selectedDate > today && currentUser.role !== "admin") {
-        return apiPatch(`/api/users/${currentUser.username}/credits`, { delta: 1 })
-          .then(() => updateUserCreditsUI());
-      }
-    })
-    .then(() => {
-      loadReservationsFromFirestore();
-    })
-    .catch(err => {
-      console.error("Errore annullamento prenotazione:", err);
-      showNotification("Errore nell'annullamento della prenotazione.", "error");
-    });
-}
 function updateUserCreditsUI() {
   if (!currentUser) return;
   apiGet(`/api/users/${currentUser.username}/credits`)
@@ -431,7 +190,8 @@ function updateUserCreditsUI() {
     });
 }
 function startUserCreditsListener() {
-  updateUserCreditsUI(); // niente realtime, solo refresh
+  // niente realtime: aggiorniamo solo una volta al login
+  updateUserCreditsUI();
 }
 async function startAdminCreditsListener() {
   const tbody = document.getElementById('credits-table');
@@ -439,7 +199,6 @@ async function startAdminCreditsListener() {
 
   try {
     const users = await apiGet("/api/users");
-    // ordina come facevi prima
     users.sort((a, b) => {
       const getNum = (id) => {
         const lower = id.toLowerCase();
@@ -478,7 +237,6 @@ async function startAdminCreditsListener() {
     console.error("Errore caricamento utenti admin:", err);
   }
 }
-
 function modifyUserCredits(username, delta) {
   apiPatch(`/api/users/${username}/credits`, { delta })
     .then(data => {
@@ -492,7 +250,168 @@ function modifyUserCredits(username, delta) {
     });
 }
 
+/***********************
+ *  LOGIN & LOGOUT
+ ***********************/
+function login() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value.trim();
+  if (!username || !password) {
+    showNotification('Inserisci username e password.', "warn");
+    return;
+  }
+  authenticateUserFromServer(username, password);
+}
+function authenticateUserFromServer(username, password) {
+  apiPost("/api/login", { username, password })
+    .then(data => {
+      currentUser = {
+        username: data.username,
+        role: data.role || "user"
+      };
 
+      toggleSections(true);
+      toggleAdminSection();
+      showNotification(`Benvenuto, ${data.username}!`, "success");
+
+      loadReservationsForSelectedDate();
+      checkAndResetAfterSevenFifty();
+      loadDailyWeather(6);
+
+      startUserCreditsListener();
+      setupBuyCreditsButtons();
+
+      if (currentUser.role === "admin") {
+        startAdminCreditsListener();
+        populateCredentialsTable();
+      } else {
+        startUserReservationsListener();
+      }
+    })
+    .catch(err => {
+      console.error("Errore login:", err);
+      showNotification("Errore durante il login.", "error");
+    });
+}
+function logout() {
+  if (!confirm("Vuoi davvero uscire?")) return;
+  currentUser = null;
+  toggleSections(false);
+  showNotification("Sei uscito con successo.", "success");
+}
+
+/***********************
+ *  PRENOTAZIONI via EXPRESS
+ ***********************/
+function loadReservationsForSelectedDate() {
+  const selectedDate = getSelectedDate();
+  reservations = {};
+
+  apiGet(`/api/reservations?date=${selectedDate}`)
+    .then(list => {
+      list.forEach(r => {
+        const field = r.field;
+        const time  = r.time;
+        const user  = r.user;
+
+        if (!reservations[field]) reservations[field] = {};
+        if (!reservations[field][selectedDate]) reservations[field][selectedDate] = {};
+        reservations[field][selectedDate][time] = user;
+      });
+
+      populateAllFields();
+      populateAdminTable();
+      if (currentUser && currentUser.role !== "admin") {
+        startUserReservationsListener();
+      }
+    })
+    .catch(err => {
+      console.error("Errore caricamento prenotazioni:", err);
+      showNotification("Errore caricamento prenotazioni.", "error");
+    });
+}
+
+function saveReservationToServer(fieldName, date, time, user, role) {
+  return apiPost("/api/reservations", {
+    field: fieldName,
+    date,
+    time,
+    user,
+    role
+  });
+}
+
+function deleteReservationFromServer(fieldName, date, time, user) {
+  const docId = `${fieldName}_${date}_${time}_${user}`;
+  return apiDelete(`/api/reservations/${encodeURIComponent(docId)}`);
+}
+
+async function getUserTotalReservations() {
+  if (!currentUser) return 0;
+  try {
+    const data = await apiGet(`/api/users/${currentUser.username}/reservations/count`);
+    return data.total || 0;
+  } catch (error) {
+    console.error("Errore nel conteggio delle prenotazioni:", error);
+    showNotification("Errore nel conteggio delle prenotazioni.", "error");
+    return 0;
+  }
+}
+
+function saveReservation(fieldName, date, slot) {
+  saveReservationToServer(
+    fieldName,
+    date,
+    slot,
+    currentUser.username,
+    (currentUser.role === "admin" ? "admin" : "user")
+  )
+    .then(() => {
+      if (currentUser.role !== "admin") {
+        return apiPatch(`/api/users/${currentUser.username}/credits`, { delta: -1 })
+          .then(() => updateUserCreditsUI());
+      }
+    })
+    .then(() => {
+      showNotification(`Prenotazione salvata per ${fieldName} alle ${slot}`, "success");
+      loadReservationsForSelectedDate();
+    })
+    .catch(err => {
+      console.error("Errore salvataggio prenotazione:", err);
+      showNotification("Errore nel salvataggio della prenotazione.", "error");
+    });
+}
+function cancelUserReservation(fieldName, slot) {
+  const selectedDate = getSelectedDate();
+  const today = getTodayDate();
+
+  if (selectedDate === today) {
+    const confirmCancel = confirm(
+      "Se annulli una prenotazione odierna, il credito non verrà rimborsato. Vuoi procedere?"
+    );
+    if (!confirmCancel) return;
+  }
+
+  deleteReservationFromServer(fieldName, selectedDate, slot, currentUser.username)
+    .then(() => {
+      showNotification(
+        `Prenotazione annullata per ${fieldName} alle ${slot} del ${formatDateToDDMMYYYY(selectedDate)}`,
+        "success"
+      );
+
+      if (selectedDate > today && currentUser.role !== "admin") {
+        return apiPatch(`/api/users/${currentUser.username}/credits`, { delta: 1 })
+          .then(() => updateUserCreditsUI());
+      }
+    })
+    .then(() => {
+      loadReservationsForSelectedDate();
+    })
+    .catch(err => {
+      console.error("Errore annullamento prenotazione:", err);
+      showNotification("Errore nell'annullamento della prenotazione.", "error");
+    });
+}
 
 /***********************
  *  UI CAMPI E SLOT
@@ -604,7 +523,7 @@ function setupFieldClickToggles(){
     const fieldName = fieldObj.id;
 
     if(fieldOpenState[fieldName]===undefined){
-      fieldOpenState[fieldName] = false; // di default chiusi
+      fieldOpenState[fieldName] = false;
     }
 
     const fieldContainer = document.getElementById(`field-${fieldName}`);
@@ -629,7 +548,7 @@ function setupAdminSectionToggles(){
     const target   = document.getElementById(targetId);
     if(!target) return;
 
-    target.classList.add('hidden'); // partono chiuse
+    target.classList.add('hidden');
     title.style.cursor = 'pointer';
     title.addEventListener('click', ()=> target.classList.toggle('hidden'));
   });
@@ -661,90 +580,32 @@ function bookSlot(fieldName, slot) {
   }
 
   if (currentUser.role !== "admin") {
-    db.collection("users").doc(currentUser.username).get().then(doc => {
-      let credits = doc.data().credits || 0;
-      if (credits <= 0) {
-        showNotification("Non hai crediti sufficienti.", "error");
-        return;
-      }
-      getUserTotalReservations().then(total => {
-        if (total >= maxBookingsPerUser) {
-          showNotification(`Hai già raggiunto il numero massimo di prenotazioni (${maxBookingsPerUser}).`, "warn");
+    apiGet(`/api/users/${currentUser.username}/credits`)
+      .then(data => {
+        const credits = data.credits ?? 0;
+        if (credits <= 0) {
+          showNotification("Non hai crediti sufficienti.", "error");
           return;
         }
-        if (askBookingConfirmation(fieldName, slot, selectedDate)) {
-          saveReservation(fieldName, selectedDate, slot);
-        }
-      }).catch(error => {
-        console.error("Errore nel conteggio delle prenotazioni:", error);
-        showNotification("Errore nel conteggio delle prenotazioni.", "error");
+        return getUserTotalReservations().then(total => {
+          if (total >= maxBookingsPerUser) {
+            showNotification(`Hai già raggiunto il numero massimo di prenotazioni (${maxBookingsPerUser}).`, "warn");
+            return;
+          }
+          if (askBookingConfirmation(fieldName, slot, selectedDate)) {
+            saveReservation(fieldName, selectedDate, slot);
+          }
+        });
+      })
+      .catch(error => {
+        console.error("Errore nel controllo dei crediti:", error);
+        showNotification("Errore nel controllo dei crediti.", "error");
       });
-    }).catch(error => {
-      console.error("Errore nel controllo dei crediti:", error);
-      showNotification("Errore nel controllo dei crediti.", "error");
-    });
   } else {
     if (askBookingConfirmation(fieldName, slot, selectedDate)) {
       saveReservation(fieldName, selectedDate, slot);
     }
   }
-}
-function saveReservation(fieldName, date, slot) {
-  saveReservationToFirestore(
-    fieldName,
-    date,
-    slot,
-    currentUser.username,
-    (currentUser.role === "admin" ? "admin" : "user")
-  )
-    .then(() => {
-      if (currentUser.role !== "admin") {
-        db.collection("users").doc(currentUser.username).get().then(doc => {
-          let currentCredits = doc.data().credits || 0;
-          if (currentCredits > 0) {
-            db.collection("users").doc(currentUser.username).update({
-              credits: firebase.firestore.FieldValue.increment(-1)
-            }).then(() => updateUserCreditsUI());
-          } else {
-            showNotification("Non hai crediti sufficienti. Il credito non è stato decrementato.", "warn");
-            return;
-          }
-        });
-      }
-      showNotification(`Prenotazione salvata per ${fieldName} alle ${slot}`, "success");
-    })
-    .catch(err => {
-      console.error("Errore salvataggio prenotazione:", err);
-      showNotification("Errore nel salvataggio della prenotazione.", "error");
-    });
-}
-function cancelUserReservation(fieldName, slot) {
-  const selectedDate = getSelectedDate();
-  const today = getTodayDate();
-
-  if (selectedDate === today) {
-    const confirmCancel = confirm("Se annulli una prenotazione odierna, il credito non verrà rimborsato. Vuoi procedere?");
-    if (!confirmCancel) return;
-  }
-
-  db.collection("reservations")
-    .where("user", "==", currentUser.username)
-    .where("field", "==", fieldName)
-    .where("time", "==", slot)
-    .where("date", "==", selectedDate)
-    .get()
-    .then(snapshot => {
-      snapshot.forEach(doc => {
-        db.collection("reservations").doc(doc.id).delete().then(() => {
-          showNotification(`Prenotazione annullata per ${fieldName} alle ${slot} del ${formatDateToDDMMYYYY(selectedDate)}`, "success");
-          if (selectedDate > today && currentUser.role !== "admin") {
-            db.collection("users").doc(currentUser.username).update({
-              credits: firebase.firestore.FieldValue.increment(1)
-            }).then(() => updateUserCreditsUI());
-          }
-        });
-      });
-    });
 }
 
 /***********************
@@ -779,22 +640,23 @@ function populateAdminTable() {
   }
 }
 function deleteAdminReservation(fieldName, date, time, user) {
-  deleteReservationFromFirestore(fieldName, date, time, user)
-    .then(() => showNotification(`Prenotazione per ${fieldName} alle ${time} dell'utente ${user} eliminata.`, "success"))
+  deleteReservationFromServer(fieldName, date, time, user)
+    .then(() => {
+      showNotification(`Prenotazione per ${fieldName} alle ${time} dell'utente ${user} eliminata.`, "success");
+      loadReservationsForSelectedDate();
+    })
     .catch(err => {
       console.error('Errore durante la cancellazione:', err);
       showNotification("Errore durante la cancellazione.", "error");
     });
 }
-function populateCredentialsTable() {
+async function populateCredentialsTable() {
   const tbody = document.getElementById('credentials-table');
   if (!tbody) return;
 
-  db.collection("users").onSnapshot(snapshot => {
-    const docsArray = [];
-    snapshot.forEach(doc => docsArray.push(doc));
-
-    docsArray.sort((a, b) => {
+  try {
+    const users = await apiGet("/api/users");
+    users.sort((a, b) => {
       const getNum = (id) => {
         const lower = id.toLowerCase();
         if (lower.startsWith("ombrellone")) {
@@ -809,15 +671,14 @@ function populateCredentialsTable() {
           return 999999;
         }
       };
-      return getNum(a.id) - getNum(b.id);
+      return getNum(a.username) - getNum(b.username);
     });
 
     tbody.innerHTML = '';
-    docsArray.forEach(doc => {
-      const data = doc.data();
-      const username = doc.id;
-      const password = data.password || "******";
-      const isDisabled = data.disabled ? true : false;
+    users.forEach(u => {
+      const username = u.username;
+      const password = u.password || "******";
+      const isDisabled = !!u.disabled;
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -836,16 +697,20 @@ function populateCredentialsTable() {
       `;
       tbody.appendChild(tr);
     });
-  });
+  } catch (err) {
+    console.error("Errore caricamento utenti admin:", err);
+  }
 }
 function toggleUserStatus(username, isDisabled) {
-  const userRef = db.collection("users").doc(username);
   const newStatus = !isDisabled;
-  userRef.update({ disabled: newStatus })
-    .then(() => showNotification(`Stato di ${username} aggiornato a ${newStatus ? "Disabilitato" : "Attivo"}.`, "success"))
+  apiPatch(`/api/users/${username}/status`, { disabled: newStatus })
+    .then(() => {
+      showNotification(`Stato di ${username} aggiornato a ${newStatus ? "Disabilitato" : "Attivo"}.`, "success");
+      populateCredentialsTable();
+    })
     .catch(error => {
       console.error("Errore nell'aggiornamento dello stato utente:", error);
-      alert("Errore durante l'aggiornamento dello stato dell'utente.");
+      showNotification("Errore durante l'aggiornamento dello stato dell'utente.", "error");
     });
 }
 function modifyUserPassword(username) {
@@ -854,8 +719,11 @@ function modifyUserPassword(username) {
     alert("Modifica annullata.");
     return;
   }
-  db.collection("users").doc(username).update({ password: newPassword })
-    .then(() => showNotification(`Password aggiornata per ${username}.`, "success"))
+  apiPatch(`/api/users/${username}/password`, { password: newPassword })
+    .then(() => {
+      showNotification(`Password aggiornata per ${username}.`, "success");
+      populateCredentialsTable();
+    })
     .catch(error => {
       console.error("Errore nell'aggiornamento della password:", error);
       showNotification("Errore durante la modifica della password.", "error");
@@ -863,21 +731,22 @@ function modifyUserPassword(username) {
 }
 
 /***********************
- *  NOTE & IMMAGINI (REALTIME)
+ *  NOTE & IMMAGINI via EXPRESS
  ***********************/
-function loadAdminNotesRealtime() {
-  db.collection("admin").doc("notes").onSnapshot(doc => {
-    if (doc.exists) {
-      const noteText = doc.data().text || "";
-      document.getElementById("notes-content").textContent = noteText;
-      if (currentUser && currentUser.role === "admin") {
-        document.getElementById("admin-notes").value = noteText;
+function loadAdminNotes() {
+  apiGet("/api/admin/notes")
+    .then(data => {
+      const noteText = data.text || "";
+      const notesContent = document.getElementById("notes-content");
+      const adminNotes = document.getElementById("admin-notes");
+      if (notesContent) notesContent.textContent = noteText;
+      if (adminNotes && currentUser && currentUser.role === "admin") {
+        adminNotes.value = noteText;
       }
-    } else {
-      db.collection("admin").doc("notes").set({ text: "" });
-      document.getElementById("notes-content").textContent = "";
-    }
-  });
+    })
+    .catch(err => {
+      console.error("Errore caricamento note admin:", err);
+    });
 }
 function saveAdminNotes() {
   if (!(currentUser && currentUser.role === "admin")) {
@@ -885,66 +754,70 @@ function saveAdminNotes() {
     return;
   }
   const text = document.getElementById("admin-notes").value;
-  db.collection("admin").doc("notes").set({ text })
+  apiPut("/api/admin/notes", { text })
+    .then(() => showNotification("Note salvate con successo.", "success"))
     .catch(err => {
       console.error("Errore salvataggio note:", err);
       showNotification("Errore durante il salvataggio delle note.", "error");
     });
 }
-function loadAppImagesRealtime() {
+function renderAppImages(imagesData) {
   const container = document.getElementById("app-images-container");
   if (!container) return;
+  container.innerHTML = "";
 
-  db.collection("admin").doc("images").onSnapshot(doc => {
-    container.innerHTML = "";
-    if (!doc.exists) return;
+  for (let i = 1; i <= 8; i++) {
+    const url  = imagesData[`image${i}URL`]   || "";
+    const link = imagesData[`image${i}Link`]  || "";
+    const cap  = imagesData[`image${i}Caption`] || "";
 
-    const data = doc.data();
-    for (let i = 1; i <= 8; i++) {
-      const url  = data[`image${i}URL`]   || "";
-      const link = data[`image${i}Link`]  || "";
-      const cap  = data[`image${i}Caption`] || "";
+    if (!url) continue;
 
-      if (!url) continue;
+    const fig = document.createElement("figure");
+    fig.classList.add("img-caption");
 
-      const fig = document.createElement("figure");
-      fig.classList.add("img-caption");
+    const a = document.createElement("a");
+    a.href   = link || "#";
+    a.target = "_blank";
 
-      const a = document.createElement("a");
-      a.href   = link || "#";
-      a.target = "_blank";
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = `Immagine ${i}`;
 
-      const img = document.createElement("img");
-      img.src = url;
-      img.alt = `Immagine ${i}`;
+    a.appendChild(img);
+    fig.appendChild(a);
 
-      a.appendChild(img);
-      fig.appendChild(a);
-
-      if (cap) {
-        const fc = document.createElement("figcaption");
-        fc.textContent = cap;
-        fig.appendChild(fc);
-      }
-
-      container.appendChild(fig);
+    if (cap) {
+      const fc = document.createElement("figcaption");
+      fc.textContent = cap;
+      fig.appendChild(fc);
     }
-  });
+
+    container.appendChild(fig);
+  }
 }
-function loadAdminImagesRealtime() {
+function loadAppImages() {
+  apiGet("/api/admin/images")
+    .then(images => {
+      renderAppImages(images);
+    })
+    .catch(err => {
+      console.error("Errore caricamento immagini app:", err);
+    });
+}
+function loadAdminImages() {
   const containerTop    = document.getElementById("login-images-container-top");
   const containerBottom = document.getElementById("login-images-container-bottom");
 
-  db.collection("admin").doc("images").onSnapshot(doc => {
-    containerTop.innerHTML    = "";
-    containerBottom.innerHTML = "";
+  apiGet("/api/admin/images")
+    .then(images => {
+      if (containerTop) containerTop.innerHTML = "";
+      if (containerBottom) containerBottom.innerHTML = "";
 
-    if (doc.exists) {
-      const data = doc.data();
       for (let i = 1; i <= 12; i++) {
-        const url  = data[`image${i}URL`]     || "";
-        const link = data[`image${i}Link`]    || "";
-        const cap  = data[`image${i}Caption`] || "";
+        const url  = images[`image${i}URL`]     || "";
+        const link = images[`image${i}Link`]    || "";
+        const cap  = images[`image${i}Caption`] || "";
 
         if (!url) continue;
 
@@ -968,24 +841,22 @@ function loadAdminImagesRealtime() {
           fig.appendChild(fc);
         }
 
-        (i <= 8 ? containerTop : containerBottom).appendChild(fig);
+        if (containerTop && i <= 8) containerTop.appendChild(fig);
+        else if (containerBottom && i > 8) containerBottom.appendChild(fig);
 
         if (currentUser && currentUser.role === "admin") {
-          document.getElementById(`image${i}URL`).value     = url;
-          document.getElementById(`image${i}Link`).value    = link;
-          document.getElementById(`image${i}Caption`).value = cap;
+          const urlInput  = document.getElementById(`image${i}URL`);
+          const linkInput = document.getElementById(`image${i}Link`);
+          const capInput  = document.getElementById(`image${i}Caption`);
+          if (urlInput)  urlInput.value  = url;
+          if (linkInput) linkInput.value = link;
+          if (capInput)  capInput.value  = cap;
         }
       }
-    } else {
-      const initialData = {};
-      for (let i = 1; i <= 12; i++) {
-        initialData[`image${i}URL`]     = "";
-        initialData[`image${i}Link`]    = "";
-        initialData[`image${i}Caption`] = "";
-      }
-      db.collection("admin").doc("images").set(initialData);
-    }
-  });
+    })
+    .catch(err => {
+      console.error("Errore caricamento immagini login:", err);
+    });
 }
 function saveAdminImages() {
   if (!(currentUser && currentUser.role === "admin")) {
@@ -994,12 +865,19 @@ function saveAdminImages() {
   }
   const payload = {};
   for (let i = 1; i <= 12; i++) {
-    payload[`image${i}URL`]     = document.getElementById(`image${i}URL`).value.trim();
-    payload[`image${i}Link`]    = document.getElementById(`image${i}Link`).value.trim();
-    payload[`image${i}Caption`] = document.getElementById(`image${i}Caption`).value.trim();
+    const urlInput  = document.getElementById(`image${i}URL`);
+    const linkInput = document.getElementById(`image${i}Link`);
+    const capInput  = document.getElementById(`image${i}Caption`);
+    payload[`image${i}URL`]     = urlInput  ? urlInput.value.trim()  : "";
+    payload[`image${i}Link`]    = linkInput ? linkInput.value.trim() : "";
+    payload[`image${i}Caption`] = capInput  ? capInput.value.trim()  : "";
   }
-  db.collection("admin").doc("images").set(payload, { merge:true })
-    .then(() => showNotification("Immagini salvate con successo.", "success"))
+  apiPut("/api/admin/images", payload)
+    .then(() => {
+      showNotification("Immagini salvate con successo.", "success");
+      loadAdminImages();
+      loadAppImages();
+    })
     .catch(err => {
       console.error("Errore salvataggio immagini:", err);
       showNotification("Errore durante il salvataggio delle immagini.", "error");
@@ -1008,74 +886,65 @@ function saveAdminImages() {
 
 /***********************
  *  “LE MIE PRENOTAZIONI” (UTENTE)
+ *  (versione semplificata: mostra solo la data selezionata)
  ***********************/
 function startUserReservationsListener() {
   if (!currentUser) return;
 
   const container = document.getElementById('user-reservations');
-  if (!container) return;
+  const section = document.getElementById('user-reservations-section');
+  if (!container || !section) return;
+
+  const selectedDate = getSelectedDate();
   container.innerHTML = '';
 
-  // Chiudi eventuale listener precedente
-  if (userReservationsUnsubscribe) {
-    userReservationsUnsubscribe();
-    userReservationsUnsubscribe = null;
+  const fieldNames = Object.keys(reservations || {});
+  const items = [];
+
+  fieldNames.forEach(field => {
+    const dayObj = reservations[field] && reservations[field][selectedDate];
+    if (!dayObj) return;
+    Object.keys(dayObj).forEach(time => {
+      const user = dayObj[time];
+      if (user === currentUser.username) {
+        items.push({ date: selectedDate, time, field });
+      }
+    });
+  });
+
+  items.sort((a, b) => a.time.localeCompare(b.time));
+
+  if (!items.length) {
+    container.innerHTML = "<p>Nessuna prenotazione trovata per la data selezionata.</p>";
+    return;
   }
 
-  // 👇 Solo filtro per utente (nessun indice composito richiesto)
-  userReservationsUnsubscribe = db.collection("reservations")
-    .where("user", "==", currentUser.username)
-    .onSnapshot(
-      (querySnapshot) => {
-        const today = getTodayDate();
-        const items = [];
+  items.forEach(({ date, time, field }) => {
+    const displayDate = formatDateToDDMMYYYY(date);
+    const el = document.createElement('div');
+    el.classList.add('user-reservation-item');
+    el.textContent = `${displayDate} - ${time} - ${field}`;
+    el.style.cursor = 'pointer';
 
-        querySnapshot.forEach(doc => {
-          const data = doc.data();
-          if (!data || !data.date || !data.time || !data.field) return;
-          // 👇 filtro lato client: solo future/oggi
-          if (data.date >= today) items.push({ date: data.date, time: data.time, field: data.field });
-        });
+    el.addEventListener('click', () => {
+      const dp = document.getElementById('booking-date');
+      if (dp) dp.value = date;
+      loadReservationsForSelectedDate();
+      setTimeout(() => scrollToSlot(field, time), 600);
+    });
 
-        // 👇 ordino lato client per data poi orario (stringhe ISO vanno bene)
-        items.sort((a, b) => {
-          const byDate = a.date.localeCompare(b.date);
-          return byDate !== 0 ? byDate : a.time.localeCompare(b.time);
-        });
-
-        container.innerHTML = items.length ? '' : "<p>Nessuna prenotazione trovata.</p>";
-
-        items.forEach(({ date, time, field }) => {
-          const displayDate = formatDateToDDMMYYYY(date);
-          const el = document.createElement('div');
-          el.classList.add('user-reservation-item');
-          el.textContent = `${displayDate} - ${time} - ${field}`;
-          el.style.cursor = 'pointer';
-
-          el.addEventListener('click', () => {
-            const dp = document.getElementById('booking-date');
-            if (dp) dp.value = date;
-            loadReservationsFromFirestore();
-            setTimeout(() => scrollToSlot(field, time), 600);
-          });
-
-          container.appendChild(el);
-        });
-      },
-      (error) => {
-        console.error("Errore realtime prenotazioni utente:", error);
-        // Messaggio più utile: mostra il codice (es. 'failed-precondition' o 'permission-denied')
-        showNotification(`Errore realtime prenotazioni: ${error.code || error.message}`, "error");
-      }
-    );
+    container.appendChild(el);
+  });
 }
 
 /***********************
  *  MOSTRA/NASCONDI SEZIONI
  ***********************/
 function toggleSections(isLoggedIn) {
-  document.getElementById('login-area').style.display = isLoggedIn ? 'none' : 'flex';
-  document.getElementById('app-area').style.display = isLoggedIn ? 'flex' : 'none';
+  const loginArea = document.getElementById('login-area');
+  const appArea = document.getElementById('app-area');
+  if (loginArea) loginArea.style.display = isLoggedIn ? 'none' : 'flex';
+  if (appArea) appArea.style.display = isLoggedIn ? 'flex' : 'none';
   if (isLoggedIn) window.scrollTo(0, 0);
 }
 function toggleAdminSection() {
@@ -1087,25 +956,22 @@ function toggleAdminSection() {
   const body = document.body;
 
   if (currentUser && currentUser.role === 'admin') {
-    adminSection.style.display = 'block';
-    adminNotes.style.display = 'block';
-    adminNotes.addEventListener('input', saveAdminNotes);
-    userReservationsSection.style.display = 'none';
+    if (adminSection) adminSection.style.display = 'block';
+    if (adminNotes) {
+      adminNotes.style.display = 'block';
+      adminNotes.addEventListener('input', saveAdminNotes);
+    }
+    if (userReservationsSection) userReservationsSection.style.display = 'none';
     if (buyCreditsSection) buyCreditsSection.style.display = 'none';
     if (userCreditsSection) userCreditsSection.style.display = 'none';
-    body.classList.add('admin-visible'); // nasconde header/immagini
-
-    // Repaint fix
-    setTimeout(() => {
-      document.documentElement.style.display = 'none';
-      document.documentElement.offsetHeight;
-      document.documentElement.style.display = '';
-    }, 10);
+    body.classList.add('admin-visible');
   } else {
-    adminSection.style.display = 'none';
-    adminNotes.style.display = 'none';
-    adminNotes.removeEventListener('input', saveAdminNotes);
-    userReservationsSection.style.display = 'block';
+    if (adminSection) adminSection.style.display = 'none';
+    if (adminNotes) {
+      adminNotes.style.display = 'none';
+      adminNotes.removeEventListener('input', saveAdminNotes);
+    }
+    if (userReservationsSection) userReservationsSection.style.display = 'block';
     if (buyCreditsSection) buyCreditsSection.style.display = 'block';
     if (userCreditsSection) userCreditsSection.style.display = 'block';
     body.classList.remove('admin-visible');
@@ -1113,7 +979,7 @@ function toggleAdminSection() {
 }
 
 /***********************
- *  RESET AUTOMATICO
+ *  RESET AUTOMATICO (usa Express)
  ***********************/
 function checkAndResetAfterSevenFifty() {
   const lastResetDate = localStorage.getItem('lastResetDate');
@@ -1127,25 +993,10 @@ function checkAndResetAfterSevenFifty() {
   }
 }
 function resetAllReservations() {
-  const today = getTodayDate();
-  db.collection("reservations")
-    .get()
-    .then(snapshot => {
-      const batch = db.batch();
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        const reservationDate = data.date;
-        if (reservationDate < today && data.role !== "admin") {
-          const pastRef = db.collection("past_reservations").doc(doc.id);
-          batch.set(pastRef, data);
-          batch.delete(doc.ref);
-        }
-      });
-      return batch.commit();
-    })
-    .then(() => {
-      showNotification("Prenotazioni passate spostate nella collezione past_reservations.", "success");
-      loadReservationsFromFirestore();
+  apiPost("/api/reservations/reset-past", {})
+    .then(res => {
+      showNotification("Prenotazioni passate spostate nell'archivio.", "success");
+      loadReservationsForSelectedDate();
     })
     .catch(err => {
       console.error("Errore durante il reset delle prenotazioni:", err);
@@ -1170,61 +1021,53 @@ function setupBuyCreditsButtons() {
   const specialBuyContainer = document.getElementById("special-buy-container");
   const specialBuyBtn = document.getElementById("buy-special");
 
+  function preparePurchase(button, credits, url) {
+    if (!button) return;
+    button.onclick = () => {
+      if (!currentUser) {
+        alert("Devi essere loggato per acquistare crediti!");
+        return;
+      }
+      localStorage.setItem("pendingUser", currentUser.username);
+      localStorage.setItem("pendingCredits", String(credits));
+      window.location.href = url;
+    };
+  }
+
   if (isOmbrelloneSpecial(currentUser.username)) {
-    buy1CreditsBtn.style.display = "none";
-    buy2CreditsBtn.style.display = "none";
-    buy5CreditsBtn.style.display = "none";
-    specialBuyContainer.style.display = "block";
+    if (buy1CreditsBtn) buy1CreditsBtn.style.display = "none";
+    if (buy2CreditsBtn) buy2CreditsBtn.style.display = "none";
+    if (buy5CreditsBtn) buy5CreditsBtn.style.display = "none";
+    if (specialBuyContainer) specialBuyContainer.style.display = "block";
 
-    specialBuyBtn.addEventListener("click", function() {
-      if (!currentUser) { alert("Devi essere loggato per acquistare crediti!"); return; }
-      localStorage.setItem("pendingUser", currentUser.username);
-      localStorage.setItem("pendingCredits", "1");
-      window.location.href = "https://buy.stripe.com/00waEPbnf6le1vxd8518c06";
-    });
+    preparePurchase(specialBuyBtn, 1, "https://buy.stripe.com/00waEPbnf6le1vxd8518c06");
   } else {
-    buy1CreditsBtn.style.display = "inline-block";
-    buy2CreditsBtn.style.display = "inline-block";
-    buy5CreditsBtn.style.display = "inline-block";
-    specialBuyContainer.style.display = "none";
+    if (buy1CreditsBtn) buy1CreditsBtn.style.display = "inline-block";
+    if (buy2CreditsBtn) buy2CreditsBtn.style.display = "inline-block";
+    if (buy5CreditsBtn) buy5CreditsBtn.style.display = "inline-block";
+    if (specialBuyContainer) specialBuyContainer.style.display = "none";
 
-    buy1CreditsBtn.addEventListener("click", function() {
-      if (!currentUser) { alert("Devi essere loggato per acquistare crediti!"); return; }
-      localStorage.setItem("pendingUser", currentUser.username);
-      localStorage.setItem("pendingCredits", "1");
-      window.location.href = "https://buy.stripe.com/fZeaGn09h6cU2Zi003";
-    });
-    buy2CreditsBtn.addEventListener("click", function() {
-      if (!currentUser) { alert("Devi essere loggato per acquistare crediti!"); return; }
-      localStorage.setItem("pendingUser", currentUser.username);
-      localStorage.setItem("pendingCredits", "2");
-      window.location.href = "https://buy.stripe.com/6oEcOv09h58Q57qbIM";
-    });
-    buy5CreditsBtn.addEventListener("click", function() {
-      if (!currentUser) { alert("Devi essere loggato per acquistare crediti!"); return; }
-      localStorage.setItem("pendingUser", currentUser.username);
-      localStorage.setItem("pendingCredits", "5");
-      window.location.href = "https://buy.stripe.com/5kA9Cj4px8l2czS9AF";
-    });
+    preparePurchase(buy1CreditsBtn, 1, "https://buy.stripe.com/fZeaGn09h6cU2Zi003");
+    preparePurchase(buy2CreditsBtn, 2, "https://buy.stripe.com/6oEcOv09h58Q57qbIM");
+    preparePurchase(buy5CreditsBtn, 5, "https://buy.stripe.com/5kA9Cj4px8l2czS9AF");
   }
 }
 
 /***********************
- *  CONFIG ADMIN & CAMPI
+ *  CONFIG ADMIN & CAMPI via EXPRESS
  ***********************/
 function loadAdminConfig() {
-  db.collection("admin").doc("config").onSnapshot(doc => {
-    if (doc.exists) {
-      const data = doc.data();
-      if (data.maxBookingsPerUser !== undefined) {
-        maxBookingsPerUser = data.maxBookingsPerUser;
+  apiGet("/api/admin/config")
+    .then(config => {
+      if (config.maxBookingsPerUser !== undefined) {
+        maxBookingsPerUser = config.maxBookingsPerUser;
         const inputEl = document.getElementById("maxBookingsPerUser");
         if (inputEl) inputEl.value = maxBookingsPerUser;
       }
-    } else {
-      db.collection("admin").doc("config").set({ maxBookingsPerUser: 2 });
-    }
-  });
+    })
+    .catch(err => {
+      console.error("Errore caricamento config admin:", err);
+    });
 }
 function saveBookingParameters() {
   if (!(currentUser && currentUser.role === "admin")) {
@@ -1240,8 +1083,7 @@ function saveBookingParameters() {
     return;
   }
 
-  db.collection("admin").doc("config")
-    .set({ maxBookingsPerUser: newMax }, { merge: true })
+  apiPut("/api/admin/config", { maxBookingsPerUser: newMax })
     .then(() => showNotification("Parametri di prenotazione salvati con successo.", "success"))
     .catch(err => {
       console.error("Errore salvataggio parametri prenotazione:", err);
@@ -1249,27 +1091,19 @@ function saveBookingParameters() {
     });
 }
 function loadFieldsConfig() {
-  db.collection("admin").doc("fields").onSnapshot(doc => {
-    if (doc.exists) {
-      const data = doc.data();
+  apiGet("/api/admin/fields")
+    .then(data => {
       if (data.fields && Array.isArray(data.fields)) {
         fieldsList = data.fields;
       } else {
         fieldsList = [];
       }
-    } else {
-      const defaultFields = [
-        { id: "BeachVolley", name: "Beach Volley" },
-        { id: "Calcio",      name: "Beach Soccer" },
-        { id: "Multi",       name: "Multi-Sport" }
-      ];
-      db.collection("admin").doc("fields").set({ fields: defaultFields });
-      fieldsList = defaultFields;
-    }
-
-    displayFieldConfigInAdmin();
-    populateAllFields();
-  });
+      displayFieldConfigInAdmin();
+      populateAllFields();
+    })
+    .catch(err => {
+      console.error("Errore caricamento campi:", err);
+    });
 }
 function displayFieldConfigInAdmin() {
   const container = document.getElementById("field-config-container");
@@ -1307,13 +1141,16 @@ function saveFieldConfig() {
   fieldsList.forEach((fieldObj, index) => {
     const idEl = document.getElementById(`fieldId-${index}`);
     const nameEl = document.getElementById(`fieldName-${index}`);
-    fieldObj.id = idEl.value.trim();
-    fieldObj.name = nameEl.value.trim();
+    fieldObj.id = idEl ? idEl.value.trim() : "";
+    fieldObj.name = nameEl ? nameEl.value.trim() : "";
   });
 
   const validFields = fieldsList.filter(f => f.id !== "" && f.name !== "");
-  db.collection("admin").doc("fields").set({ fields: validFields })
-    .then(() => showNotification("Configurazione campi salvata con successo.", "success"))
+  apiPut("/api/admin/fields", { fields: validFields })
+    .then(() => {
+      showNotification("Configurazione campi salvata con successo.", "success");
+      loadFieldsConfig();
+    })
     .catch(err => {
       console.error("Errore salvataggio campi:", err);
       showNotification("Errore durante il salvataggio dei campi.", "error");
@@ -1325,13 +1162,14 @@ function saveFieldConfig() {
  ***********************/
 document.addEventListener('DOMContentLoaded', () => {
   toggleSections(false);
-  loadAdminImagesRealtime();
 
+  loadAdminImages();
+  loadAppImages();
   loadAdminConfig();
   loadFieldsConfig();
+  loadAdminNotes();
   setupAdminSectionToggles();
 
-  // Meteo (emoji, 5-6 giorni)
   loadDailyWeather(6);
 
   const today = getTodayDate();
@@ -1340,7 +1178,7 @@ document.addEventListener('DOMContentLoaded', () => {
     datePicker.value = today;
     datePicker.min = today;
     datePicker.addEventListener('change', () => {
-      loadReservationsFromFirestore();
+      loadReservationsForSelectedDate();
     });
   }
 });
