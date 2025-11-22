@@ -953,3 +953,90 @@ button,
 .admin-toggle:hover {
   filter: brightness(1.08);
 }
+/* =========================================
+   ALLINEAMENTO GENERALE (CENTRATURE)
+   ========================================= */
+
+/* Tutta la parte utente più centrata */
+#app-area,
+#user-credits-section,
+.user-reservations-section,
+.notes-section,
+.date-picker {
+  text-align: center;
+}
+
+/* Login: titolo, descrizione e input centrati bene */
+.login-form {
+  text-align: center;
+  align-items: center;
+}
+
+.login-form input {
+  text-align: center;
+}
+
+/* Immagini login: centrate e con dimensioni consistenti */
+#login-images-container-top,
+#login-images-container-bottom {
+  justify-content: center;
+  align-items: center;
+}
+
+#login-images-container-top img,
+#login-images-container-bottom img {
+  display: block;
+  margin: 0 auto;
+}
+
+/* Immagini dopo login: centrate rispetto al contenitore */
+#app-images-container {
+  width: 100%;
+  align-items: center;
+}
+
+#app-images-container a {
+  display: flex;
+  justify-content: center;
+}
+
+#app-images-container a img {
+  display: block;
+  margin: 0 auto;
+}
+
+/* Data in mezzo, sia etichetta che input */
+.date-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.date-picker label {
+  width: 100%;
+  text-align: center;
+}
+
+#booking-date {
+  text-align: center;
+}
+
+/* Meteo: blocco centrato, icone + giorni già uno sotto l’altro */
+.hourly-weather {
+  width: 100%;
+  align-items: center;
+}
+
+/* Leggera riduzione generale per non essere "fuori misura" su mobile */
+body {
+  font-size: 15px;
+}
+
+.login-form h1 {
+  font-size: 1.35rem;
+}
+
+.notes-section h2,
+.admin h2 {
+  font-size: 0.95rem;
+}
