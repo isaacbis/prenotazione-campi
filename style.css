@@ -740,3 +740,67 @@ body.admin-visible #admin-area {
   width: 46px;              /* simili come altezza alle chip meteo */
   border-radius: 18px;
 }
+/* =========================
+   Meteo più compatto
+   ========================= */
+
+.hourly-weather {
+  max-height: 160px;       /* prima era più alto */
+  padding: 4px 0;
+  gap: 4px;
+  align-items: flex-start; /* non tutto centrato, più stretto */
+}
+
+.hour-chip {
+  width: 34px;             /* più stretto */
+  min-width: 34px;
+  height: 38px;            /* più basso */
+  padding: 3px 4px;
+  border-radius: 10px;
+}
+
+.hour-chip .em {
+  font-size: 0.95rem;      /* icona un po' più piccola */
+}
+
+.hour-chip .hh {
+  font-size: 0.55rem;      /* testo più piccolo */
+  margin-top: 1px;
+}
+/* =========================================
+   OVERRIDE METEO: GIORNI UNO SOTTO L’ALTRO
+   ========================================= */
+
+.hourly-weather {
+  display: flex;
+  flex-direction: column;   /* colonna */
+  align-items: stretch;     /* occupano tutta la larghezza */
+  gap: 6px;
+  padding: 6px 0;
+  max-height: none;         /* niente scroll verticale forzato */
+}
+
+/* Ogni "giorno" meteo diventa una riga intera */
+.hour-chip {
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  padding: 6px 10px;
+  border-radius: 14px;
+
+  display: flex;
+  flex-direction: row;          /* icona + testo in riga */
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Icona meteo leggermente più piccola */
+.hour-chip .em {
+  font-size: 1rem;
+}
+
+/* Testo giorno/ora più leggibile */
+.hour-chip .hh {
+  font-size: 0.8rem;
+  margin-top: 0;
+}
