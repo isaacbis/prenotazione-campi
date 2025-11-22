@@ -1,19 +1,38 @@
 // server.js
-// Backend Express per app prenotazione campi SENZA Firebase
+// Backend Express per app prenotazione campi SENZA Firebase, con sessioni e protezioni base
 
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
+const session = require("express-session");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, "db.json");
 const MAX_FAILED_ATTEMPTS = 3;
 
-// Middleware
+// Dillo a Express che è dietro un proxy (Render usa un proxy)
+app.set("trust proxy", 1);
+
+// Middleware base
 app.use(cors());
 app.use(express.json());
+
+// Sessione
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "CAMBIA-QUESTA-FRASE-SEGRETA",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production", // true solo in produzione (HTTPS)
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 giorni
+    },
+  })
+);
 
 // Static: serve i file della tua app (index.html, script.js, style.css, success.html, immagini, ecc.)
 app.use(express.static(path.join(__dirname, "public")));
@@ -74,7 +93,7 @@ function saveDb() {
   fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2), "utf8");
 }
 
-// Helper
+// Helper utenti
 function getUser(username) {
   if (!username) return null;
   return db.users[username] || null;
@@ -85,10 +104,11 @@ function setUser(username, userData) {
   saveDb();
 }
 
+// Se manca admin di default, lo creo
 function ensureAdminUser() {
   if (!db.users["admin"]) {
     db.users["admin"] = {
-      password: "admin",      // CAMBIALA SUBITO nel db.json
+      password: "admin",      // CAMBIALA SUBITO
       role: "admin",
       credits: 0,
       disabled: false,
@@ -106,6 +126,24 @@ function makeReservationId(field, date, time, user) {
 }
 
 /* =========================
+ *  MIDDLEWARE DI AUTENTICAZIONE
+ * ========================= */
+
+function requireAuth(req, res, next) {
+  if (!req.session || !req.session.user) {
+    return res.status(401).json({ error: "unauthorized" });
+  }
+  next();
+}
+
+function requireAdmin(req, res, next) {
+  if (!req.session || !req.session.user || req.session.user.role !== "admin") {
+    return res.status(403).json({ error: "forbidden" });
+  }
+  next();
+}
+
+/* =========================
  *  ROUTE DI TEST
  * ========================= */
 
@@ -114,7 +152,7 @@ app.get("/api/ping", (req, res) => {
 });
 
 /* =========================
- *  LOGIN & UTENTI
+ *  LOGIN, LOGOUT & UTENTI
  * ========================= */
 
 // Login
@@ -153,6 +191,12 @@ app.post("/api/login", (req, res) => {
   user.failedAttempts = 0;
   saveDb();
 
+  // Salvo utente in sessione
+  req.session.user = {
+    username,
+    role: user.role || "user"
+  };
+
   res.json({
     username,
     role: user.role || "user",
@@ -161,8 +205,20 @@ app.post("/api/login", (req, res) => {
   });
 });
 
-// Lista utenti (per tabella admin crediti/utenti)
-app.get("/api/users", (req, res) => {
+// Logout
+app.post("/api/logout", requireAuth, (req, res) => {
+  req.session.destroy(err => {
+    if (err) {
+      console.error("Errore distruzione sessione:", err);
+      return res.status(500).json({ error: "logout_failed" });
+    }
+    res.clearCookie("connect.sid");
+    res.json({ ok: true });
+  });
+});
+
+// Lista utenti (solo admin)
+app.get("/api/users", requireAdmin, (req, res) => {
   const usersArray = Object.entries(db.users).map(([username, data]) => ({
     username,
     password: data.password || "",
@@ -173,8 +229,8 @@ app.get("/api/users", (req, res) => {
   res.json(usersArray);
 });
 
-// Dettaglio utente
-app.get("/api/users/:username", (req, res) => {
+// Dettaglio utente singolo (solo admin)
+app.get("/api/users/:username", requireAdmin, (req, res) => {
   const { username } = req.params;
   const user = getUser(username);
   if (!user) {
@@ -190,9 +246,15 @@ app.get("/api/users/:username", (req, res) => {
   });
 });
 
-// Crediti: GET
-app.get("/api/users/:username/credits", (req, res) => {
+// Crediti: GET (admin può leggere tutti, utente solo i propri)
+app.get("/api/users/:username/credits", requireAuth, (req, res) => {
   const { username } = req.params;
+  const sessionUser = req.session.user;
+
+  if (sessionUser.role !== "admin" && sessionUser.username !== username) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+
   const user = getUser(username);
   if (!user) {
     return res.status(404).json({ error: "user_not_found" });
@@ -200,10 +262,15 @@ app.get("/api/users/:username/credits", (req, res) => {
   res.json({ credits: user.credits || 0 });
 });
 
-// Crediti: PATCH (delta o set)
-app.patch("/api/users/:username/credits", (req, res) => {
+// Crediti: PATCH (admin può modificare tutti, utente solo i propri)
+app.patch("/api/users/:username/credits", requireAuth, (req, res) => {
   const { username } = req.params;
+  const sessionUser = req.session.user;
   const { delta, set } = req.body || {};
+
+  if (sessionUser.role !== "admin" && sessionUser.username !== username) {
+    return res.status(403).json({ error: "forbidden" });
+  }
 
   const user = getUser(username);
   if (!user) {
@@ -224,8 +291,8 @@ app.patch("/api/users/:username/credits", (req, res) => {
   res.json({ credits: user.credits });
 });
 
-// Cambia stato abilitato/disabilitato
-app.patch("/api/users/:username/status", (req, res) => {
+// Cambia stato abilitato/disabilitato (solo admin)
+app.patch("/api/users/:username/status", requireAdmin, (req, res) => {
   const { username } = req.params;
   const { disabled } = req.body || {};
 
@@ -239,8 +306,8 @@ app.patch("/api/users/:username/status", (req, res) => {
   res.json({ username, disabled: user.disabled });
 });
 
-// Cambia password
-app.patch("/api/users/:username/password", (req, res) => {
+// Cambia password (solo admin)
+app.patch("/api/users/:username/password", requireAdmin, (req, res) => {
   const { username } = req.params;
   const { password } = req.body || {};
 
@@ -258,8 +325,8 @@ app.patch("/api/users/:username/password", (req, res) => {
   res.json({ username, ok: true });
 });
 
-// Crea / aggiorna utente (utility, se ti serve)
-app.put("/api/users/:username", (req, res) => {
+// Crea / aggiorna utente (solo admin, se ti serve)
+app.put("/api/users/:username", requireAdmin, (req, res) => {
   const { username } = req.params;
   const { password, role, credits, disabled } = req.body || {};
 
@@ -284,8 +351,8 @@ app.put("/api/users/:username", (req, res) => {
  *  PRENOTAZIONI
  * ========================= */
 
-// Lista prenotazioni per data
-app.get("/api/reservations", (req, res) => {
+// Lista prenotazioni per data (utente loggato)
+app.get("/api/reservations", requireAuth, (req, res) => {
   const { date } = req.query;
   if (!date) {
     return res.status(400).json({ error: "missing_date" });
@@ -295,22 +362,31 @@ app.get("/api/reservations", (req, res) => {
   res.json(list);
 });
 
-// Conteggio prenotazioni per utente (per maxBookingsPerUser)
-app.get("/api/users/:username/reservations/count", (req, res) => {
+// Conteggio prenotazioni per utente (admin può vedere tutti, utente solo se stesso)
+app.get("/api/users/:username/reservations/count", requireAuth, (req, res) => {
   const { username } = req.params;
+  const sessionUser = req.session.user;
+
+  if (sessionUser.role !== "admin" && sessionUser.username !== username) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+
   const total = db.reservations.filter(r => r.user === username).length;
   res.json({ username, total });
 });
 
-// Crea prenotazione
-app.post("/api/reservations", (req, res) => {
-  const { field, date, time, user, role } = req.body || {};
+// Crea prenotazione: non mi fido di "user" & "role" nel body, uso la sessione
+app.post("/api/reservations", requireAuth, (req, res) => {
+  const { field, date, time } = req.body || {};
+  const sessionUser = req.session.user;
+  const username = sessionUser.username;
+  const effectiveRole = sessionUser.role || "user";
 
-  if (!field || !date || !time || !user) {
+  if (!field || !date || !time) {
     return res.status(400).json({ error: "missing_fields" });
   }
 
-  const u = getUser(user);
+  const u = getUser(username);
   if (!u) {
     return res.status(404).json({ error: "user_not_found" });
   }
@@ -318,7 +394,7 @@ app.post("/api/reservations", (req, res) => {
     return res.status(403).json({ error: "user_disabled" });
   }
 
-  // Controlla se slot già occupato (qualsiasi utente)
+  // Controlla se slot già occupato
   const already = db.reservations.find(
     r => r.field === field && r.date === date && r.time === time
   );
@@ -326,14 +402,14 @@ app.post("/api/reservations", (req, res) => {
     return res.status(409).json({ error: "slot_already_booked" });
   }
 
-  const id = makeReservationId(field, date, time, user);
+  const id = makeReservationId(field, date, time, username);
   const record = {
     id,
     field,
     date,
     time,
-    user,
-    role: role || u.role || "user"
+    user: username,
+    role: effectiveRole
   };
 
   db.reservations.push(record);
@@ -341,22 +417,29 @@ app.post("/api/reservations", (req, res) => {
   res.status(201).json(record);
 });
 
-// Cancella prenotazione per ID
-app.delete("/api/reservations/:id", (req, res) => {
+// Cancella prenotazione per ID (utente può cancellare le proprie, admin tutte)
+app.delete("/api/reservations/:id", requireAuth, (req, res) => {
   const { id } = req.params;
-  const index = db.reservations.findIndex(r => r.id === id);
+  const sessionUser = req.session.user;
 
+  const index = db.reservations.findIndex(r => r.id === id);
   if (index === -1) {
     return res.status(404).json({ error: "not_found" });
   }
 
-  const [deleted] = db.reservations.splice(index, 1);
+  const reservation = db.reservations[index];
+
+  if (sessionUser.role !== "admin" && reservation.user !== sessionUser.username) {
+    return res.status(403).json({ error: "forbidden" });
+  }
+
+  db.reservations.splice(index, 1);
   saveDb();
-  res.json({ deleted });
+  res.json({ deleted: reservation });
 });
 
-// Sposta prenotazioni passate in "pastReservations" (simile a past_reservations Firestore)
-app.post("/api/reservations/reset-past", (req, res) => {
+// Sposta prenotazioni passate in "pastReservations" (solo admin)
+app.post("/api/reservations/reset-past", requireAdmin, (req, res) => {
   const today = new Date().toISOString().slice(0, 10); // yyyy-mm-dd
 
   const stillValid = [];
@@ -383,11 +466,13 @@ app.post("/api/reservations/reset-past", (req, res) => {
  * ========================= */
 
 // NOTE
+// GET note: pubbliche (visibili anche a login page)
 app.get("/api/admin/notes", (req, res) => {
   res.json({ text: db.admin.notes || "" });
 });
 
-app.put("/api/admin/notes", (req, res) => {
+// PUT note: solo admin
+app.put("/api/admin/notes", requireAdmin, (req, res) => {
   const { text } = req.body || {};
   db.admin.notes = text || "";
   saveDb();
@@ -410,13 +495,14 @@ function ensureAdminImages() {
   }
 }
 
+// GET immagini: pubblico (per mostrarle anche nella pagina login)
 app.get("/api/admin/images", (req, res) => {
   ensureAdminImages();
   res.json(db.admin.images);
 });
 
-app.put("/api/admin/images", (req, res) => {
-  // Accetta già un oggetto del tipo { image1URL: "...", image1Link: "...", ... }
+// PUT immagini: solo admin
+app.put("/api/admin/images", requireAdmin, (req, res) => {
   db.admin.images = Object.assign({}, db.admin.images, req.body || {});
   ensureAdminImages();
   saveDb();
@@ -424,6 +510,7 @@ app.put("/api/admin/images", (req, res) => {
 });
 
 // CONFIG (maxBookingsPerUser)
+// GET config: pubblico (serve alla logica di prenotazione)
 app.get("/api/admin/config", (req, res) => {
   if (!db.admin.config) {
     db.admin.config = { maxBookingsPerUser: 2 };
@@ -432,7 +519,8 @@ app.get("/api/admin/config", (req, res) => {
   res.json(db.admin.config);
 });
 
-app.put("/api/admin/config", (req, res) => {
+// PUT config: solo admin
+app.put("/api/admin/config", requireAdmin, (req, res) => {
   const { maxBookingsPerUser } = req.body || {};
   if (typeof maxBookingsPerUser !== "number" || maxBookingsPerUser < 0) {
     return res.status(400).json({ error: "invalid_maxBookingsPerUser" });
@@ -443,6 +531,7 @@ app.put("/api/admin/config", (req, res) => {
 });
 
 // CAMPI (fields: [{ id, name }])
+// GET fields: pubblico (serve a generare i box dei campi anche prima del login)
 app.get("/api/admin/fields", (req, res) => {
   if (!Array.isArray(db.admin.fields)) {
     db.admin.fields = [
@@ -455,7 +544,8 @@ app.get("/api/admin/fields", (req, res) => {
   res.json({ fields: db.admin.fields });
 });
 
-app.put("/api/admin/fields", (req, res) => {
+// PUT fields: solo admin
+app.put("/api/admin/fields", requireAdmin, (req, res) => {
   const { fields } = req.body || {};
   if (!Array.isArray(fields)) {
     return res.status(400).json({ error: "fields_must_be_array" });
@@ -474,7 +564,6 @@ app.put("/api/admin/fields", (req, res) => {
  *  FALLBACK SPA
  * ========================= */
 
-// Qualsiasi GET non /api/* ritorna index.html (se usi solo /)
 app.get("*", (req, res) => {
   if (req.path.startsWith("/api/")) {
     return res.status(404).json({ error: "api_not_found" });
