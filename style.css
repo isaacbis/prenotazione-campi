@@ -804,3 +804,152 @@ body.admin-visible #admin-area {
   font-size: 0.8rem;
   margin-top: 0;
 }
+/* =========================================================
+   METEO: icona sopra, giorno sotto (più bello)
+   ========================================================= */
+
+.hourly-weather {
+  display: flex;
+  flex-direction: column;   /* giorni uno sotto l’altro */
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  max-height: none;         /* niente taglio verticale */
+}
+
+.hour-chip {
+  width: 64px;
+  min-width: 64px;
+  height: 64px;
+  padding: 6px 4px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  display: flex;
+  flex-direction: column;   /* icona sopra, testo sotto */
+  align-items: center;
+  justify-content: center;
+
+  background:
+    radial-gradient(circle at top, rgba(250, 204, 21, 0.28), transparent 60%),
+    linear-gradient(180deg, #020617, #020617);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.6);
+
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease, filter 0.15s ease;
+}
+
+.hour-chip .em {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.hour-chip .hh {
+  margin-top: 3px;
+  font-size: 0.78rem;
+  text-transform: capitalize;  /* "lunedì" -> "Lunedì" */
+}
+
+/* piccolo effetto al passaggio */
+.hour-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(250, 204, 21, 0.7);
+  filter: brightness(1.08);
+}
+
+/* =========================================================
+   NASCONDI COMPLETAMENTE LA SEZIONE "ACQUISTA CREDITI"
+   ========================================================= */
+
+.buy-credits-section,
+#buy-credits-section {
+  display: none !important;
+}
+
+/* =========================================================
+   COLORI E ANIMAZIONI MIGLIORATI (slot, card, admin)
+   ========================================================= */
+
+/* Card un filo più luminose */
+.field-box,
+.notes-section,
+.date-picker,
+.user-credits,
+.admin {
+  background:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.12), transparent 60%),
+    radial-gradient(circle at bottom, rgba(249, 115, 22, 0.18), transparent 60%),
+    rgba(15, 23, 42, 0.96);
+}
+
+/* Transizioni morbide su elementi interattivi */
+button,
+.circle-button,
+.slot.available,
+.admin-toggle,
+.field-box {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    filter 0.15s ease;
+}
+
+/* Slot prenotabili: hover/active */
+.slot.available:hover {
+  background:
+    radial-gradient(circle at top, rgba(34, 211, 238, 0.22), transparent 60%),
+    #020617;
+  box-shadow: 0 10px 22px rgba(34, 211, 238, 0.55);
+  transform: translateY(-1px);
+}
+
+.slot.available:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: none;
+}
+
+/* Il tuo slot: glow animato, più "importante" */
+.slot.my-booking {
+  background: linear-gradient(135deg, #facc15, #f97316);
+  color: #111827;
+  border-color: #facc15;
+  animation: slotGlow 2.3s ease-in-out infinite;
+}
+
+@keyframes slotGlow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 2px #111 inset,
+      0 0 26px rgba(250, 204, 21, 0.5);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px #111 inset,
+      0 0 38px rgba(250, 204, 21, 0.9);
+  }
+}
+
+/* Hover sui box dei campi */
+.field-box:hover {
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.65);
+  transform: translateY(-1px);
+}
+
+/* Admin toggle (titolo tendina) più "cliccabile" */
+.admin-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.admin-toggle::after {
+  content: "˅";
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.admin-toggle:hover {
+  filter: brightness(1.08);
+}

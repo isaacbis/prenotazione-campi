@@ -94,8 +94,10 @@ function weatherCodeToEmoji(code){
 }
 function weekdayShort(dateStr){
   const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '');
+  // nome completo del giorno in italiano, es. "lunedì"
+  return d.toLocaleDateString('it-IT', { weekday: 'long' });
 }
+
 async function loadDailyWeather(days=6){
   const el = document.getElementById('weather-forecast'); // container nel header
   if (!el) return;
