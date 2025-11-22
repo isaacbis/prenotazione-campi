@@ -1,23 +1,35 @@
 // server.js
-// Backend Express per app prenotazione campi SENZA Firebase, con sessioni e protezioni base
+// Backend Express per app prenotazione campi con:
+// - db.json su file
+// - sessioni
+// - middleware requireAuth / requireAdmin
+// - helmet, rate limit sul login
+// - password hashate con bcrypt (compatibile con vecchie password in chiaro)
 
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 const session = require("express-session");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const bcrypt = require("bcrypt");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DB_FILE = path.join(__dirname, "db.json");
 const MAX_FAILED_ATTEMPTS = 3;
+const SALT_ROUNDS = 10;
 
-// Dillo a Express che è dietro un proxy (Render usa un proxy)
+// Dillo a Express che è dietro un proxy (tipo Render)
 app.set("trust proxy", 1);
 
 // Middleware base
 app.use(cors());
 app.use(express.json());
+
+// Helmet: header di sicurezza
+app.use(helmet());
 
 // Sessione
 app.use(
@@ -29,12 +41,12 @@ app.use(
       secure: process.env.NODE_ENV === "production", // true solo in produzione (HTTPS)
       httpOnly: true,
       sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 giorni
-    },
+      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 giorni
+    }
   })
 );
 
-// Static: serve i file della tua app (index.html, script.js, style.css, success.html, immagini, ecc.)
+// Static: serve i file della tua app (index.html, script.js, style.css, success.html, ecc.)
 app.use(express.static(path.join(__dirname, "public")));
 
 /* =========================
@@ -60,8 +72,8 @@ function loadDb() {
       if (!data.admin.fields) {
         data.admin.fields = [
           { id: "BeachVolley", name: "Beach Volley" },
-          { id: "Calcio",      name: "Beach Soccer" },
-          { id: "Multi",       name: "Multi-Sport" }
+          { id: "Calcio", name: "Beach Soccer" },
+          { id: "Multi", name: "Multi-Sport" }
         ];
       }
 
@@ -82,8 +94,8 @@ function loadDb() {
       config: { maxBookingsPerUser: 2 },
       fields: [
         { id: "BeachVolley", name: "Beach Volley" },
-        { id: "Calcio",      name: "Beach Soccer" },
-        { id: "Multi",       name: "Multi-Sport" }
+        { id: "Calcio", name: "Beach Soccer" },
+        { id: "Multi", name: "Multi-Sport" }
       ]
     }
   };
@@ -108,7 +120,8 @@ function setUser(username, userData) {
 function ensureAdminUser() {
   if (!db.users["admin"]) {
     db.users["admin"] = {
-      password: "admin",      // CAMBIALA SUBITO
+      // PRIMA VOLTA solo: sarà migrata ad hash al primo login
+      password: "admin",
       role: "admin",
       credits: 0,
       disabled: false,
@@ -144,6 +157,15 @@ function requireAdmin(req, res, next) {
 }
 
 /* =========================
+ *  RATE LIMIT SUL LOGIN
+ * ========================= */
+
+const loginLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minuti
+  max: 30,                 // max 30 richieste / 5min dallo stesso IP
+});
+
+/* =========================
  *  ROUTE DI TEST
  * ========================= */
 
@@ -155,8 +177,38 @@ app.get("/api/ping", (req, res) => {
  *  LOGIN, LOGOUT & UTENTI
  * ========================= */
 
+// login helper: supporta password in chiaro (vecchie) e passwordHash (nuove)
+async function verifyPassword(user, password) {
+  // Se esiste già l'hash, uso bcrypt
+  if (user.passwordHash) {
+    try {
+      return await bcrypt.compare(password, user.passwordHash);
+    } catch (e) {
+      console.error("Errore compare bcrypt:", e);
+      return false;
+    }
+  }
+
+  // Vecchio formato: password in chiaro
+  if (user.password && user.password === password) {
+    // Migrazione: genero hash e rimuovo la password in chiaro
+    try {
+      const hash = await bcrypt.hash(password, SALT_ROUNDS);
+      user.passwordHash = hash;
+      delete user.password;
+      saveDb();
+      console.log(`Migrata password utente ${user.username || "(senza username)"}`);
+    } catch (e) {
+      console.error("Errore hash bcrypt in migrazione:", e);
+    }
+    return true;
+  }
+
+  return false;
+}
+
 // Login
-app.post("/api/login", (req, res) => {
+app.post("/api/login", loginLimiter, async (req, res) => {
   const { username, password } = req.body || {};
 
   if (!username || !password) {
@@ -172,7 +224,8 @@ app.post("/api/login", (req, res) => {
     return res.status(403).json({ error: "user_disabled" });
   }
 
-  if (user.password !== password) {
+  const ok = await verifyPassword({ ...user, username }, password);
+  if (!ok) {
     user.failedAttempts = (user.failedAttempts || 0) + 1;
 
     if (user.role === "admin" && user.failedAttempts >= MAX_FAILED_ATTEMPTS) {
@@ -217,11 +270,11 @@ app.post("/api/logout", requireAuth, (req, res) => {
   });
 });
 
-// Lista utenti (solo admin)
+// Lista utenti (solo admin) – NON restituisce password reali
 app.get("/api/users", requireAdmin, (req, res) => {
   const usersArray = Object.entries(db.users).map(([username, data]) => ({
     username,
-    password: data.password || "",
+    password: "******", // mascherata
     role: data.role || "user",
     credits: data.credits || 0,
     disabled: !!data.disabled
@@ -229,7 +282,7 @@ app.get("/api/users", requireAdmin, (req, res) => {
   res.json(usersArray);
 });
 
-// Dettaglio utente singolo (solo admin)
+// Dettaglio utente singolo (solo admin) – password non esposta
 app.get("/api/users/:username", requireAdmin, (req, res) => {
   const { username } = req.params;
   const user = getUser(username);
@@ -238,7 +291,7 @@ app.get("/api/users/:username", requireAdmin, (req, res) => {
   }
   res.json({
     username,
-    password: user.password || "",
+    password: "******",
     role: user.role || "user",
     credits: user.credits || 0,
     disabled: !!user.disabled,
@@ -306,8 +359,8 @@ app.patch("/api/users/:username/status", requireAdmin, (req, res) => {
   res.json({ username, disabled: user.disabled });
 });
 
-// Cambia password (solo admin)
-app.patch("/api/users/:username/password", requireAdmin, (req, res) => {
+// Cambia password (solo admin) – salva solo hash
+app.patch("/api/users/:username/password", requireAdmin, async (req, res) => {
   const { username } = req.params;
   const { password } = req.body || {};
 
@@ -320,13 +373,21 @@ app.patch("/api/users/:username/password", requireAdmin, (req, res) => {
     return res.status(404).json({ error: "user_not_found" });
   }
 
-  user.password = password;
-  saveDb();
+  try {
+    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    user.passwordHash = hash;
+    delete user.password; // rimuovo eventuale password in chiaro
+    saveDb();
+  } catch (e) {
+    console.error("Errore hash bcrypt in cambio password:", e);
+    return res.status(500).json({ error: "hash_failed" });
+  }
+
   res.json({ username, ok: true });
 });
 
-// Crea / aggiorna utente (solo admin, se ti serve)
-app.put("/api/users/:username", requireAdmin, (req, res) => {
+// Crea / aggiorna utente (solo admin, se ti serve) – crea hash
+app.put("/api/users/:username", requireAdmin, async (req, res) => {
   const { username } = req.params;
   const { password, role, credits, disabled } = req.body || {};
 
@@ -335,8 +396,16 @@ app.put("/api/users/:username", requireAdmin, (req, res) => {
   }
 
   const existing = getUser(username) || {};
+  let hash;
+  try {
+    hash = await bcrypt.hash(password, SALT_ROUNDS);
+  } catch (e) {
+    console.error("Errore hash bcrypt in creazione utente:", e);
+    return res.status(500).json({ error: "hash_failed" });
+  }
+
   const user = {
-    password,
+    passwordHash: hash,
     role: role || existing.role || "user",
     credits: typeof credits === "number" ? credits : existing.credits || 0,
     disabled: typeof disabled === "boolean" ? disabled : !!existing.disabled,
@@ -536,8 +605,8 @@ app.get("/api/admin/fields", (req, res) => {
   if (!Array.isArray(db.admin.fields)) {
     db.admin.fields = [
       { id: "BeachVolley", name: "Beach Volley" },
-      { id: "Calcio",      name: "Beach Soccer" },
-      { id: "Multi",       name: "Multi-Sport" }
+      { id: "Calcio", name: "Beach Soccer" },
+      { id: "Multi", name: "Multi-Sport" }
     ];
     saveDb();
   }
