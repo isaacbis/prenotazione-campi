@@ -29,7 +29,12 @@ app.use(cors());
 app.use(express.json());
 
 // Helmet: header di sicurezza
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // disattiva CSP, lasciando il resto di helmet attivo
+  })
+);
+
 
 // Sessione
 app.use(

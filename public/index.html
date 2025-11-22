@@ -20,11 +20,8 @@
     referrerpolicy="no-referrer"
   />
 
-  <!-- Collega il file CSS con timestamp per forzare aggiornamento -->
-  <script>
-    var timestamp = new Date().getTime();
-    document.write('<link rel="stylesheet" href="style.css?v=' + timestamp + '">');
-  </script>
+  <link rel="stylesheet" href="style.css">
+
 </head>
 <body>
   <!-- Sezione Login -->
@@ -303,19 +300,7 @@
   </div>
 
  
-  <!-- Collega JS con timestamp -->
-  <script>
-    var timestamp = new Date().getTime();
-    document.write('<script src="script.js?v=' + timestamp + '"><\/script>');
-  </script>
+  <script src="script.js"></script>
 
-  <!-- Inizializzazione tema (funziona con lo script.js aggiornato) -->
-  <script>
-    // Se lo script principale non fosse ancora caricato, garantisco il tema salvato
-    (function(){
-      var saved = localStorage.getItem('theme');
-      if(saved === 'light'){ document.documentElement.classList.add('light'); }
-    })();
-  </script>
 </body>
 </html>

@@ -262,6 +262,7 @@ function login() {
   }
   authenticateUserFromServer(username, password);
 }
+
 function authenticateUserFromServer(username, password) {
   apiPost("/api/login", { username, password })
     .then(data => {
@@ -275,18 +276,16 @@ function authenticateUserFromServer(username, password) {
       showNotification(`Benvenuto, ${data.username}!`, "success");
 
       loadReservationsForSelectedDate();
+
       checkAndResetAfterSevenFifty();
       loadDailyWeather(6);
 
       startUserCreditsListener();
-      setupBuyCreditsButtons();
-
       if (currentUser.role === "admin") {
         startAdminCreditsListener();
-        populateCredentialsTable();
-      } else {
-        startUserReservationsListener();
       }
+
+      setupBuyCreditsButtons();
     })
     .catch(err => {
       console.error("Errore login:", err);
@@ -943,9 +942,17 @@ function startUserReservationsListener() {
 function toggleSections(isLoggedIn) {
   const loginArea = document.getElementById('login-area');
   const appArea = document.getElementById('app-area');
-  if (loginArea) loginArea.style.display = isLoggedIn ? 'none' : 'flex';
-  if (appArea) appArea.style.display = isLoggedIn ? 'flex' : 'none';
-  if (isLoggedIn) window.scrollTo(0, 0);
+
+  if (!loginArea || !appArea) return;
+
+  // login visibile solo se NON loggato
+  loginArea.style.display = isLoggedIn ? 'none' : 'flex';
+  // app visibile solo se loggato
+  appArea.style.display = isLoggedIn ? 'block' : 'none';
+
+  if (isLoggedIn) {
+    window.scrollTo(0, 0);
+  }
 }
 function toggleAdminSection() {
   const adminSection = document.getElementById('admin-area');
@@ -1161,16 +1168,8 @@ function saveFieldConfig() {
  *  INIT
  ***********************/
 document.addEventListener('DOMContentLoaded', () => {
+  // all'avvio: utente NON loggato
   toggleSections(false);
-
-  loadAdminImages();
-  loadAppImages();
-  loadAdminConfig();
-  loadFieldsConfig();
-  loadAdminNotes();
-  setupAdminSectionToggles();
-
-  loadDailyWeather(6);
 
   const today = getTodayDate();
   const datePicker = document.getElementById('booking-date');
@@ -1178,7 +1177,20 @@ document.addEventListener('DOMContentLoaded', () => {
     datePicker.value = today;
     datePicker.min = today;
     datePicker.addEventListener('change', () => {
+      // usa la versione con Express
       loadReservationsForSelectedDate();
     });
   }
+
+  // Config admin (slot, num max prenotazioni ecc) dal server Express
+  loadAdminConfig();
+  loadFieldsConfig();
+  setupAdminSectionToggles();
+
+  // Immagini login e immagini interne app via API Express
+  loadAdminImages();
+  loadAppImages();
+
+  // Meteo emoji
+  loadDailyWeather(6);
 });
