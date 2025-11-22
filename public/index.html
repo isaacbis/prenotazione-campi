@@ -185,19 +185,17 @@
           <h2 class="admin-toggle" data-target="admin-campi">Gestione Campi</h2>
           <div id="admin-campi" class="gestione-campi">
             <p>Aggiungi, modifica o rimuovi i campi.</p>
+            <!-- Questo container viene riempito da loadFieldsConfig() -->
             <div id="field-config-container"></div>
-            <button onclick="addFieldRow()">Aggiungi Campo</button>
-            <button onclick="saveFieldConfig()">Salva Configurazione Campi</button>
+            <!-- Il bottone "Aggiungi campo" viene creato dallo script -->
+            <button type="button" onclick="saveFieldsConfig()">Salva Configurazione Campi</button>
           </div>
         </div>
 
         <!-- Gestione Immagini Login -->
         <div class="admin">
-          <h2>Gestione Immagini Login (max 12)</h2>
-          <div class="image-admin-form">
-            <h3>Immagini sopra il Benvenuto</h3>
-            <div class="images-top">
-              <div>
+          <h2 class="admin-toggle" data-target="admin-images-form">Gestione Immagini Login (max 12)</h2>
+          <div class="image-admin-form" id="admin-images-form">
                 <!-- 12 blocchi URL/Link/Didascalia -->
                 <!-- (Generato in tempo reale anche nello script) -->
                 <label>Immagine 1 (URL):</label>

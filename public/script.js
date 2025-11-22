@@ -61,8 +61,8 @@ async function apiDelete(path) {
 // --- STATO GLOBALE ---
 let currentUser = null;
 let lastLoadedDate = null;
-let lastLoadedFieldConfig = null;
 let bookingInProgress = false;
+let fieldsList = [];
 
 // --- UTIL BASE ---
 function getTodayDate() {
@@ -96,13 +96,13 @@ function showNotification(message, type = "info") {
 }
 
 function toggleSections(isLoggedIn) {
-  const loginArea = document.getElementById('login-area');
-  const appArea = document.getElementById('app-area');
+  const loginArea = document.getElementById("login-area");
+  const appArea = document.getElementById("app-area");
 
   if (!loginArea || !appArea) return;
 
-  loginArea.style.display = isLoggedIn ? 'none' : 'flex';
-  appArea.style.display = isLoggedIn ? 'block' : 'none';
+  loginArea.style.display = isLoggedIn ? "none" : "flex";
+  appArea.style.display = isLoggedIn ? "block" : "none";
 
   if (isLoggedIn) {
     window.scrollTo(0, 0);
@@ -111,8 +111,8 @@ function toggleSections(isLoggedIn) {
 
 // --- LOGIN / LOGOUT ---
 function login() {
-  const username = document.getElementById('username')?.value.trim();
-  const password = document.getElementById('password')?.value.trim();
+  const username = document.getElementById("username")?.value.trim();
+  const password = document.getElementById("password")?.value.trim();
 
   if (!username || !password) {
     showNotification("Inserisci username e password.", "warn");
@@ -169,46 +169,43 @@ function logout() {
 
 // --- ADMIN SECTION (visibilità) ---
 function toggleAdminSection() {
-  const adminSection = document.getElementById('admin-area');
-  const adminNotes = document.getElementById('admin-notes');
-  const userReservationsSection = document.getElementById('user-reservations-section');
-  const buyCreditsSection = document.getElementById('buy-credits-section');
-  const userCreditsSection = document.getElementById('user-credits-section');
+  const adminSection = document.getElementById("admin-area");
+  const adminNotes = document.getElementById("admin-notes");
+  const userReservationsSection = document.getElementById("user-reservations-section");
+  const buyCreditsSection = document.getElementById("buy-credits-section");
+  const userCreditsSection = document.getElementById("user-credits-section");
   const body = document.body;
 
-  // box interni specifici dell'area admin
-  const adminUtentiBox  = document.getElementById('admin-utenti');
-  const adminCreditiBox = document.getElementById('admin-crediti');
+  const adminUtentiBox = document.getElementById("admin-utenti");
+  const adminCreditiBox = document.getElementById("admin-crediti");
 
-  if (currentUser && currentUser.role === 'admin') {
-    if (adminSection) adminSection.style.display = 'block';
+  if (currentUser && currentUser.role === "admin") {
+    if (adminSection) adminSection.style.display = "block";
     if (adminNotes) {
-      adminNotes.style.display = 'block';
-      adminNotes.addEventListener('input', saveAdminNotes);
+      adminNotes.style.display = "block";
+      adminNotes.addEventListener("input", saveAdminNotes);
     }
-    if (userReservationsSection) userReservationsSection.style.display = 'none';
-    if (buyCreditsSection) buyCreditsSection.style.display = 'none';
-    if (userCreditsSection) userCreditsSection.style.display = 'none';
-    body.classList.add('admin-visible');
+    if (userReservationsSection) userReservationsSection.style.display = "none";
+    if (buyCreditsSection) buyCreditsSection.style.display = "none";
+    if (userCreditsSection) userCreditsSection.style.display = "none";
+    body.classList.add("admin-visible");
 
-    // apri di default le sotto-sezioni principali
-    if (adminUtentiBox)  adminUtentiBox.classList.remove('hidden');
-    if (adminCreditiBox) adminCreditiBox.classList.remove('hidden');
+    if (adminUtentiBox) adminUtentiBox.classList.remove("hidden");
+    if (adminCreditiBox) adminCreditiBox.classList.remove("hidden");
 
-    // popola tabella utenti
-    if (typeof populateCredentialsTable === 'function') {
+    if (typeof populateCredentialsTable === "function") {
       populateCredentialsTable();
     }
   } else {
-    if (adminSection) adminSection.style.display = 'none';
+    if (adminSection) adminSection.style.display = "none";
     if (adminNotes) {
-      adminNotes.style.display = 'none';
-      adminNotes.removeEventListener('input', saveAdminNotes);
+      adminNotes.style.display = "none";
+      adminNotes.removeEventListener("input", saveAdminNotes);
     }
-    if (userReservationsSection) userReservationsSection.style.display = 'block';
-    if (buyCreditsSection) buyCreditsSection.style.display = 'block';
-    if (userCreditsSection) userCreditsSection.style.display = 'block';
-    body.classList.remove('admin-visible');
+    if (userReservationsSection) userReservationsSection.style.display = "block";
+    if (buyCreditsSection) buyCreditsSection.style.display = "block";
+    if (userCreditsSection) userCreditsSection.style.display = "block";
+    body.classList.remove("admin-visible");
   }
 }
 
@@ -228,30 +225,20 @@ async function updateUserCreditsUI() {
 }
 
 function startUserCreditsListener() {
-  // niente realtime: aggiorniamo solo una volta al login
   updateUserCreditsUI();
 }
 
 async function startAdminCreditsListener() {
-  const tbody = document.getElementById('credits-table');
+  const tbody = document.getElementById("credits-table");
   if (!tbody) return;
 
   try {
     const users = await apiGet("/api/users");
     users.sort((a, b) => {
-      const getNum = (id) => {
+      const getNum = id => {
         const lower = id.toLowerCase();
-        if (lower.startsWith("ombrellone")) {
-          const numStr = id.slice("ombrellone".length);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else if (lower.startsWith("user")) {
-          const numStr = id.slice(4);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else {
-          return 999999;
-        }
+        const match = lower.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
       };
       return getNum(a.username) - getNum(b.username);
     });
@@ -281,7 +268,7 @@ function openAdminCreditModal(username, currentCredits) {
   if (amount === null) return;
   const newVal = parseInt(amount, 10);
   if (isNaN(newVal) || newVal < 0) {
-    showNotification("Valore crediti non valido.", "error");
+    showNotification("Valore non valido.", "error");
     return;
   }
 
@@ -299,7 +286,7 @@ function openAdminCreditModal(username, currentCredits) {
     });
 }
 
-// --- COMPRA CREDITI (Stripe client-side stub) ---
+// --- COMPRA CREDITI (stub) ---
 function setupBuyCreditsButtons() {
   const buttons = document.querySelectorAll("[data-credits]");
   buttons.forEach(btn => {
@@ -310,7 +297,6 @@ function setupBuyCreditsButtons() {
         return;
       }
 
-      // Qui ora salviamo solo "pending" lato client
       localStorage.setItem(
         "pendingCreditPurchase",
         JSON.stringify({
@@ -320,7 +306,6 @@ function setupBuyCreditsButtons() {
         })
       );
 
-      // TODO: qui andrebbe integrata la chiamata a /api/payments/create-checkout-session
       showNotification(
         `Simulazione acquisto di ${credits} crediti. (Stripe lato server da integrare)`,
         "info"
@@ -334,7 +319,7 @@ function loadAdminNotes() {
   apiGet("/api/admin/notes")
     .then(data => {
       const text = data.text || "";
-      const notesEl = document.getElementById("admin-notes-text");
+      const notesEl = document.getElementById("notes-content");
       if (notesEl) {
         notesEl.textContent = text;
       }
@@ -357,7 +342,7 @@ function saveAdminNotes() {
 
   apiPut("/api/admin/notes", { text })
     .then(() => {
-      const notesEl = document.getElementById("admin-notes-text");
+      const notesEl = document.getElementById("notes-content");
       if (notesEl) notesEl.textContent = text;
     })
     .catch(err => {
@@ -368,10 +353,12 @@ function saveAdminNotes() {
 
 // --- IMMAGINI ADMIN (LOGIN + APP) ---
 function applyImagesToDOM(images) {
-  const loginContainer = document.getElementById("login-images-container");
+  const loginTop = document.getElementById("login-images-container-top");
+  const loginBottom = document.getElementById("login-images-container-bottom");
   const appContainer = document.getElementById("app-images-container");
 
-  if (loginContainer) loginContainer.innerHTML = "";
+  if (loginTop) loginTop.innerHTML = "";
+  if (loginBottom) loginBottom.innerHTML = "";
   if (appContainer) appContainer.innerHTML = "";
 
   const maxImages = 12;
@@ -391,9 +378,15 @@ function applyImagesToDOM(images) {
     linkEl.target = link ? "_blank" : "_self";
     linkEl.appendChild(imgEl);
 
-    if (loginContainer) {
-      loginContainer.appendChild(linkEl.cloneNode(true));
+    // login: prime 6 immagini sopra, le altre sotto
+    if (loginTop && i <= 6) {
+      loginTop.appendChild(linkEl.cloneNode(true));
     }
+    if (loginBottom && i > 6) {
+      loginBottom.appendChild(linkEl.cloneNode(true));
+    }
+
+    // immagini interne app
     if (appContainer) {
       appContainer.appendChild(linkEl);
     }
@@ -425,7 +418,6 @@ function loadAdminImages() {
 }
 
 function loadAppImages() {
-  // qui usiamo la stessa API delle immagini admin
   loadAdminImages();
 }
 
@@ -464,7 +456,6 @@ function saveAdminImages() {
 function loadAdminConfig() {
   apiGet("/api/admin/config")
     .then(config => {
-      lastLoadedFieldConfig = config;
       if (config && typeof config.maxBookingsPerUser === "number") {
         const maxBookingsPerUser = config.maxBookingsPerUser;
         const inputEl = document.getElementById("maxBookingsPerUser");
@@ -481,60 +472,61 @@ function saveBookingParameters() {
     showNotification("Non hai i permessi per modificare i parametri.", "error");
     return;
   }
+
   const inputEl = document.getElementById("maxBookingsPerUser");
   if (!inputEl) return;
-
   const value = parseInt(inputEl.value, 10);
-  if (isNaN(value) || value < 0) {
-    showNotification("Valore non valido", "error");
+  if (isNaN(value) || value < 1) {
+    showNotification("Valore non valido.", "error");
     return;
   }
 
   apiPut("/api/admin/config", { maxBookingsPerUser: value })
     .then(() => {
-      showNotification("Parametri di prenotazione aggiornati.", "success");
-      loadAdminConfig();
+      showNotification("Parametri prenotazione aggiornati.", "success");
     })
     .catch(err => {
-      console.error("Errore salvataggio parametri prenotazione:", err);
+      console.error("Errore salvataggio config admin:", err);
       showNotification("Errore nel salvataggio dei parametri.", "error");
     });
 }
 
-// --- CAMPI (FIELDS) ADMIN ---
+// --- CAMPI (FIELDS) ---
 function loadFieldsConfig() {
   apiGet("/api/admin/fields")
     .then(data => {
       const fields = data.fields || [];
-      const container = document.getElementById("admin-fields-container");
-      if (!container) return;
+      fieldsList = fields; // salviamo per il render delle prenotazioni
 
-      container.innerHTML = "";
-      fields.forEach(f => {
-        const row = document.createElement("div");
-        row.className = "field-row";
-        row.innerHTML = `
-          <input type="text" class="field-id" value="${f.id}" placeholder="ID campo (es. BeachVolley)" />
-          <input type="text" class="field-name" value="${f.name}" placeholder="Nome campo (es. Beach Volley)" />
-        `;
-        container.appendChild(row);
-      });
+      const container = document.getElementById("field-config-container");
+      if (container) {
+        container.innerHTML = "";
+        fields.forEach(f => {
+          const row = document.createElement("div");
+          row.className = "field-row";
+          row.innerHTML = `
+            <input type="text" class="field-id" value="${f.id}" placeholder="ID campo (es. BeachVolley)" />
+            <input type="text" class="field-name" value="${f.name}" placeholder="Nome campo (es. Beach Volley)" />
+          `;
+          container.appendChild(row);
+        });
 
-      const addBtn = document.createElement("button");
-      addBtn.textContent = "Aggiungi campo";
-      addBtn.type = "button";
-      addBtn.onclick = () => {
-        const row = document.createElement("div");
-        row.className = "field-row";
-        row.innerHTML = `
-          <input type="text" class="field-id" value="" placeholder="ID campo (es. BeachVolley)" />
-          <input type="text" class="field-name" value="" placeholder="Nome campo (es. Beach Volley)" />
-        `;
-        container.insertBefore(row, addBtn);
-      };
-      container.appendChild(addBtn);
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "Aggiungi campo";
+        addBtn.type = "button";
+        addBtn.onclick = () => {
+          const row = document.createElement("div");
+          row.className = "field-row";
+          row.innerHTML = `
+            <input type="text" class="field-id" value="" placeholder="ID campo (es. BeachVolley)" />
+            <input type="text" class="field-name" value="" placeholder="Nome campo (es. Beach Volley)" />
+          `;
+          container.insertBefore(row, addBtn);
+        };
+        container.appendChild(addBtn);
+      }
 
-      renderFieldsForBooking(fields);
+      renderFieldsForBooking(fieldsList);
     })
     .catch(err => {
       console.error("Errore caricamento fields:", err);
@@ -546,7 +538,7 @@ function saveFieldsConfig() {
     showNotification("Non hai i permessi per modificare i campi.", "error");
     return;
   }
-  const container = document.getElementById("admin-fields-container");
+  const container = document.getElementById("field-config-container");
   if (!container) return;
 
   const rows = container.querySelectorAll(".field-row");
@@ -602,6 +594,9 @@ function loadReservationsForSelectedDate() {
   apiGet(`/api/reservations?date=${encodeURIComponent(date)}`)
     .then(reservations => {
       renderReservations(date, reservations || []);
+      if (currentUser && currentUser.role === "admin") {
+        loadAdminReservationsList();
+      }
     })
     .catch(err => {
       console.error("Errore caricamento prenotazioni:", err);
@@ -610,7 +605,7 @@ function loadReservationsForSelectedDate() {
 }
 
 function renderReservations(date, reservations) {
-  const fields = lastLoadedFieldConfig?.fields || [];
+  const fields = fieldsList || [];
   fields.forEach(field => {
     const container = document.getElementById(`slots-${field.id}`);
     if (!container) return;
@@ -632,23 +627,23 @@ function renderReservations(date, reservations) {
         } else if (currentUser && reservation.user === currentUser.username) {
           div.classList.add("mine");
         } else {
-          div.classList.add("unavailable");
+          div.classList.add("taken");
         }
+        div.dataset.user = reservation.user;
+        div.dataset.role = reservation.role;
+        div.onclick = () => handleSlotClick(field.id, slot, reservation);
       } else {
-        div.classList.add("available");
+        div.classList.add("free");
+        div.onclick = () => handleSlotClick(field.id, slot, null);
       }
-
-      div.addEventListener("click", () => {
-        handleSlotClick(field, slot, reservation);
-      });
 
       container.appendChild(div);
     });
   });
 }
 
+// --- SLOT UTILS ---
 function generateSlotsForDay(date) {
-  // slot di 45 minuti dalle 8:00 alle 23:00 (modifica se vuoi)
   const startHour = 8;
   const endHour = 23;
   const slotMinutes = 45;
@@ -671,29 +666,31 @@ function generateSlotsForDay(date) {
 // --- GESTIONE SLOT (BOOK / CANCEL) ---
 function handleSlotClick(field, slot, reservation) {
   if (!currentUser) {
-    showNotification("Effettua il login per prenotare.", "warn");
+    showNotification("Devi effettuare il login per prenotare.", "warn");
     return;
   }
 
-  if (reservation && reservation.user === currentUser.username) {
-    cancelUserReservation(field.name, slot);
-    return;
+  if (reservation) {
+    if (currentUser.role === "admin" || reservation.user === currentUser.username) {
+      const confirmDelete = confirm(
+        `Vuoi cancellare la prenotazione di ${reservation.user} alle ${slot} per ${field}?`
+      );
+      if (!confirmDelete) return;
+      cancelUserReservation(field, slot);
+    } else {
+      showNotification("Questo slot è già prenotato.", "warn");
+    }
+  } else {
+    bookSlot(field, slot);
   }
-
-  if (!reservation) {
-    bookSlot(field.name, slot);
-    return;
-  }
-
-  showNotification("Slot già prenotato.", "warn");
 }
 
 function bookSlot(fieldName, slot) {
   if (!currentUser) return;
 
   const selectedDate = getSelectedDate();
-  const today        = getTodayDate();
-  const now          = new Date();
+  const today = getTodayDate();
+  const now = new Date();
 
   if (selectedDate < today) {
     showNotification("Non puoi prenotare per giorni passati!", "warn");
@@ -703,7 +700,7 @@ function bookSlot(fieldName, slot) {
   const SLOT_LENGTH_MINUTES = 45;
   if (selectedDate === today) {
     const slotStart = new Date(`${selectedDate}T${slot}:00`);
-    const slotEnd   = new Date(slotStart.getTime() + SLOT_LENGTH_MINUTES * 60000);
+    const slotEnd = new Date(slotStart.getTime() + SLOT_LENGTH_MINUTES * 60000);
     if (now >= slotEnd) {
       showNotification("Non puoi prenotare uno slot già terminato!", "warn");
       return;
@@ -833,66 +830,55 @@ function resetPastReservations() {
 
   apiPost("/api/reservations/reset-past", {})
     .then(data => {
-      showNotification(`Spostate ${data.movedCount || 0} prenotazioni nello storico.`, "success");
+      showNotification(
+        `Spostate ${data.movedCount || 0} prenotazioni nello storico.`,
+        "success"
+      );
       lastLoadedDate = null;
       loadReservationsForSelectedDate();
     })
     .catch(err => {
-      console.error("Errore reset prenotazioni passate:", err);
+      console.error("Errore reset prenotazioni.", err);
       showNotification("Errore nel reset delle prenotazioni.", "error");
     });
 }
 
-// --- ADMIN: GESTIONE UTENTI (CREDENZIALI / STATO / PASSWORD) ---
+// --- ADMIN: GESTIONE UTENTI (tabella/password/stato) ---
 async function populateCredentialsTable() {
-  const tbody = document.getElementById('credentials-table');
+  const tbody = document.getElementById("users-table");
   if (!tbody) return;
 
   try {
     const users = await apiGet("/api/users");
     users.sort((a, b) => {
-      const getNum = (id) => {
+      const getNum = id => {
         const lower = id.toLowerCase();
-        if (lower.startsWith("ombrellone")) {
-          const numStr = id.slice(10);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else if (lower.startsWith("user")) {
-          const numStr = id.slice(4);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else {
-          return 999999;
-        }
+        const match = lower.match(/(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
       };
       return getNum(a.username) - getNum(b.username);
     });
 
-    tbody.innerHTML = '';
-    users.forEach(u => {
-      const username = u.username;
-      const password = u.password || "******";
-      const isDisabled = !!u.disabled;
+    tbody.innerHTML = "";
 
-      const tr = document.createElement('tr');
+    users.forEach(u => {
+      const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td>${username}</td>
-        <td>${password}</td>
-        <td>${isDisabled ? 'Disabilitato' : 'Attivo'}</td>
+        <td>${u.username}</td>
+        <td>${u.disabled ? "Disabilitato" : "Attivo"}</td>
         <td>
-          <button onclick="toggleUserStatus('${username}', ${isDisabled})">
-            <i class="fas ${isDisabled ? 'fa-toggle-off' : 'fa-toggle-on'}"></i>
-            ${isDisabled ? 'Attiva' : 'Dis'}
+          <button onclick="toggleUserStatus('${u.username}', ${u.disabled})">
+            ${u.disabled ? "Riattiva" : "Disabilita"}
           </button>
-          <button onclick="modifyUserPassword('${username}')">
-            <i class="fas fa-key"></i> Mod
+          <button onclick="modifyUserPassword('${u.username}')">
+            Modifica Password
           </button>
         </td>
       `;
       tbody.appendChild(tr);
     });
   } catch (error) {
-    console.error("Errore caricamento utenti:", error);
+    console.error("Errore nel caricamento utenti:", error);
     showNotification("Errore nel caricamento degli utenti.", "error");
   }
 }
@@ -902,7 +888,10 @@ function toggleUserStatus(username, currentDisabled) {
 
   apiPatch(`/api/users/${username}/status`, { disabled: newStatus })
     .then(() => {
-      showNotification(`Stato di ${username} aggiornato a ${newStatus ? "Disabilitato" : "Attivo"}.`, "success");
+      showNotification(
+        `Stato di ${username} aggiornato a ${newStatus ? "Disabilitato" : "Attivo"}.`,
+        "success"
+      );
       populateCredentialsTable();
     })
     .catch(error => {
@@ -924,103 +913,45 @@ function modifyUserPassword(username) {
       populateCredentialsTable();
     })
     .catch(error => {
-      console.error("Errore nell'aggiornamento della password:", error);
-      showNotification("Errore nell'aggiornamento della password.", "error");
+      console.error("Errore nella modifica della password:", error);
+      showNotification("Errore nella modifica della password.", "error");
     });
 }
 
-// --- METEO (Open-Meteo) ---
-const METEO_LAT = 43.722; // Senigallia approx
-const METEO_LON = 13.214;
-
-function weatherEmoji(code) {
-  if ([0].includes(code)) return "☀️";
-  if ([1, 2].includes(code)) return "🌤️";
-  if ([3].includes(code)) return "☁️";
-  if ([45, 48].includes(code)) return "🌫️";
-  if ([51, 53, 55].includes(code)) return "🌦️";
-  if ([56, 57].includes(code)) return "🌧️";
-  if ([61, 63, 65].includes(code)) return "🌧️";
-  if ([66, 67].includes(code)) return "🌧️";
-  if ([71, 73, 75].includes(code)) return "❄️";
-  if ([77].includes(code)) return "🌨️";
-  if ([80, 81, 82].includes(code)) return "🌦️";
-  if ([85, 86].includes(code)) return "🌨️";
-  if ([95, 96, 99].includes(code)) return "⛈️";
-  return "❔";
-}
-
-function weekdayShort(dateStr){
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '');
-}
-
-async function loadDailyWeather(days=6){
-  const el = document.getElementById('weather-forecast');
-  if (!el) return;
-
-  try{
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${METEO_LAT}&longitude=${METEO_LON}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`;
-    const res = await fetch(url);
-    if(!res.ok) throw new Error("Errore richiesta meteo");
-    const data = await res.json();
-
-    el.innerHTML = "";
-    const codes = data.daily.weathercode;
-    const tMax  = data.daily.temperature_2m_max;
-    const tMin  = data.daily.temperature_2m_min;
-    const dates = data.daily.time;
-
-    for(let i=0; i<Math.min(days, dates.length); i++){
-      const div = document.createElement("div");
-      div.className = "hour-chip";
-
-      const emoji = weatherEmoji(codes[i]);
-      const wday  = weekdayShort(dates[i]);
-      const max   = Math.round(tMax[i]);
-      const min   = Math.round(tMin[i]);
-
-      div.innerHTML = `
-        <span class="em">${emoji}</span>
-        <span class="hh">${wday.toUpperCase()} • ${max}° / ${min}°</span>
-      `;
-      el.appendChild(div);
-    }
-  }catch(e){
-    console.error("Errore meteo:", e);
-  }
-}
-
-// --- RESET AUTO ALLE 7:50 PER MODALITA' GIORNALIERA ---
+// --- RESET AUTOMATICO PRENOTAZIONI ALLE 7:50 (SE VUOI MANTENERLO) ---
 function checkAndResetAfterSevenFifty() {
-  // ora non usiamo più Firestore, quindi questa funzione può essere vuota o rimossa
-  // la lasciamo come placeholder nel caso serva logica in futuro
+  // qui puoi eventualmente fare una chiamata a /api/reservations/reset se vuoi automatizzare lato server
 }
 
-// --- ADMIN: TOGGLE SEZIONI COLLASSABILI ---
-function setupAdminSectionToggles(){
-  document.querySelectorAll('.admin-toggle').forEach(title=>{
-    const targetId = title.dataset.target;
-    const target   = document.getElementById(targetId);
-    if(!target) return;
+// --- METEO (emoji) ---
+async function loadDailyWeather(days = 6) {
+  // qui puoi integrare una chiamata a un'API meteo se vuoi
+}
 
-    target.classList.add('hidden');
-    title.style.cursor = 'pointer';
-    title.addEventListener('click', ()=> target.classList.toggle('hidden'));
+// --- TOGGLE SEZIONI ADMIN (accordion) ---
+function setupAdminSectionToggles() {
+  document.querySelectorAll(".admin-toggle").forEach(title => {
+    const targetId = title.dataset.target;
+    const target = document.getElementById(targetId);
+    if (!target) return;
+
+    target.classList.add("hidden");
+    title.style.cursor = "pointer";
+    title.addEventListener("click", () => target.classList.toggle("hidden"));
   });
 }
 
 // --- INIT ---
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   // all'avvio: utente NON loggato
   toggleSections(false);
 
   const today = getTodayDate();
-  const datePicker = document.getElementById('booking-date');
+  const datePicker = document.getElementById("booking-date");
   if (datePicker) {
     datePicker.value = today;
     datePicker.min = today;
-    datePicker.addEventListener('change', () => {
+    datePicker.addEventListener("change", () => {
       lastLoadedDate = null;
       loadReservationsForSelectedDate();
       if (currentUser && currentUser.role === "admin") {
@@ -1029,12 +960,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Config admin (slot, num max prenotazioni ecc) dal server Express
+  // Config admin + campi
   loadAdminConfig();
   loadFieldsConfig();
   setupAdminSectionToggles();
 
-  // Immagini login e immagini interne app via API Express
+  // Immagini login e immagini app
   loadAdminImages();
   loadAppImages();
 
