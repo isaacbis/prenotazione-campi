@@ -55,211 +55,70 @@ async function apiDelete(path) {
     const text = await res.text().catch(() => "");
     throw new Error(`DELETE ${path} -> ${res.status} ${text}`);
   }
-  return res.json();
+  return res.json().catch(() => ({}));
 }
 
-/***********************
- *  VARIABILI GLOBALI
- ***********************/
+// --- STATO GLOBALE ---
 let currentUser = null;
+let lastLoadedDate = null;
+let lastLoadedFieldConfig = null;
+let bookingInProgress = false;
 
-// Parametri dinamici
-let maxBookingsPerUser = 2;
-let fieldsList = [];        // Lista campi dal server
-
-// Struttura prenotazioni per la data selezionata
-let reservations = {};
-
-/***********************
- *  COSTANTI DI SICUREZZA
- ***********************/
-const MAX_FAILED_ATTEMPTS = 3;
-
-/***********************
- *  UTILS DATA & UI
- ***********************/
+// --- UTIL BASE ---
 function getTodayDate() {
-  const today = new Date();
-  let yyyy = today.getFullYear();
-  let mm = String(today.getMonth() + 1).padStart(2, '0');
-  let dd = String(today.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd}`;
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
-function formatDateToDDMMYYYY(isoDate) {
-  if (!isoDate) return "";
-  const [yyyy, mm, dd] = isoDate.split("-");
-  return `${dd}/${mm}/${yyyy}`;
-}
+
 function getSelectedDate() {
-  const datePicker = document.getElementById('booking-date');
-  return datePicker && datePicker.value ? datePicker.value : getTodayDate();
+  const dateInput = document.getElementById("booking-date");
+  if (!dateInput || !dateInput.value) return getTodayDate();
+  return dateInput.value;
 }
 
-/* Notifica con tipologia opzionale: "success" | "error" | "warn" | "info" */
 function showNotification(message, type = "info") {
-  const container = document.getElementById('notification-container');
+  const container = document.getElementById("notification-container");
   if (!container) return;
-  const notification = document.createElement('div');
-  notification.classList.add('notification');
-  if (["success","error","warn"].includes(type)) notification.classList.add(type);
-  notification.textContent = message;
-  container.appendChild(notification);
-  setTimeout(() => notification.remove(), 3000);
-}
 
-/***********************
- *  METEO GIORNALIERO (emoji) – Senigallia
- ***********************/
-const METEO_LAT = 43.72;
-const METEO_LON = 13.22;
+  const div = document.createElement("div");
+  div.className = `notification ${type}`;
+  div.textContent = message;
 
-function weatherCodeToEmoji(code){
-  if ([0].includes(code)) return "☀️";
-  if ([1,2].includes(code)) return "🌤️";
-  if ([3].includes(code)) return "☁️";
-  if ([45,48].includes(code)) return "🌫️";
-  if ([51,53,55].includes(code)) return "🌦️";
-  if ([56,57].includes(code)) return "🌧️";
-  if ([61,63,65].includes(code)) return "🌧️";
-  if ([66,67].includes(code)) return "🌧️";
-  if ([71,73,75].includes(code)) return "❄️";
-  if ([77].includes(code)) return "🌨️";
-  if ([80,81,82].includes(code)) return "🌦️";
-  if ([85,86].includes(code)) return "🌨️";
-  if ([95,96,99].includes(code)) return "⛈️";
-  return "❔";
-}
-function weekdayShort(dateStr){
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '');
-}
-async function loadDailyWeather(days=6){
-  const el = document.getElementById('weather-forecast');
-  if (!el) return;
-
-  try{
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${METEO_LAT}&longitude=${METEO_LON}&daily=weathercode&timezone=Europe%2FRome`;
-    const res = await fetch(url);
-    const data = await res.json();
-
-    el.innerHTML = "";
-    const { time, weathercode } = data.daily;
-
-    for (let i=0; i<Math.min(days, time.length); i++){
-      const day = time[i];
-      const code = weathercode[i];
-      const chip = document.createElement('div');
-      chip.className = 'hour-chip';
-      chip.title = day;
-
-      const emEl = document.createElement('div');
-      emEl.className = 'em';
-      emEl.textContent = weatherCodeToEmoji(code);
-
-      const ddEl = document.createElement('div');
-      ddEl.className = 'hh';
-      ddEl.textContent = weekdayShort(day);
-
-      chip.appendChild(emEl);
-      chip.appendChild(ddEl);
-      el.appendChild(chip);
+  container.appendChild(div);
+  setTimeout(() => {
+    if (div.parentNode === container) {
+      container.removeChild(div);
     }
-  }catch(err){
-    console.error("Meteo errore:", err);
-    el.innerHTML = '';
-    const chip = document.createElement('div');
-    chip.className = 'hour-chip';
-    chip.innerHTML = `<div class="em">☀️</div><div class="hh">oggi</div>`;
-    el.appendChild(chip);
+  }, 3500);
+}
+
+function toggleSections(isLoggedIn) {
+  const loginArea = document.getElementById('login-area');
+  const appArea = document.getElementById('app-area');
+
+  if (!loginArea || !appArea) return;
+
+  loginArea.style.display = isLoggedIn ? 'none' : 'flex';
+  appArea.style.display = isLoggedIn ? 'block' : 'none';
+
+  if (isLoggedIn) {
+    window.scrollTo(0, 0);
   }
 }
 
-/***********************
- *  CREDITI UTENTE & ADMIN
- ***********************/
-function updateUserCreditsUI() {
-  if (!currentUser) return;
-  apiGet(`/api/users/${currentUser.username}/credits`)
-    .then(data => {
-      const credits = data.credits ?? 0;
-      const el = document.getElementById("user-credits");
-      if (el) el.textContent = `Crediti: ${credits}`;
-    })
-    .catch(err => {
-      console.error("Errore nel recupero crediti utente:", err);
-    });
-}
-function startUserCreditsListener() {
-  // niente realtime: aggiorniamo solo una volta al login
-  updateUserCreditsUI();
-}
-async function startAdminCreditsListener() {
-  const tbody = document.getElementById('credits-table');
-  if (!tbody) return;
-
-  try {
-    const users = await apiGet("/api/users");
-    users.sort((a, b) => {
-      const getNum = (id) => {
-        const lower = id.toLowerCase();
-        if (lower.startsWith("ombrellone")) {
-          const numStr = id.slice("ombrellone".length);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else if (lower.startsWith("user")) {
-          const numStr = id.slice(4);
-          const n = parseInt(numStr, 10);
-          return isNaN(n) ? 999999 : n;
-        } else {
-          return 999999;
-        }
-      };
-      return getNum(a.username) - getNum(b.username);
-    });
-
-    tbody.innerHTML = "";
-
-    users.forEach(u => {
-      const username = u.username;
-      const credits = u.credits ?? 0;
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${username}</td>
-        <td id="credits-${username}">${credits}</td>
-        <td>
-          <button onclick="modifyUserCredits('${username}', 1)">+</button>
-          <button onclick="modifyUserCredits('${username}', -1)">-</button>
-        </td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } catch (err) {
-    console.error("Errore caricamento utenti admin:", err);
-  }
-}
-function modifyUserCredits(username, delta) {
-  apiPatch(`/api/users/${username}/credits`, { delta })
-    .then(data => {
-      const td = document.getElementById(`credits-${username}`);
-      if (td) td.textContent = data.credits;
-      showNotification(`Crediti aggiornati per ${username}: ${data.credits}`, "success");
-    })
-    .catch(err => {
-      console.error("Errore modifica crediti:", err);
-      showNotification("Errore nella modifica dei crediti.", "error");
-    });
-}
-
-/***********************
- *  LOGIN & LOGOUT
- ***********************/
+// --- LOGIN / LOGOUT ---
 function login() {
-  const username = document.getElementById('username').value.trim();
-  const password = document.getElementById('password').value.trim();
+  const username = document.getElementById('username')?.value.trim();
+  const password = document.getElementById('password')?.value.trim();
+
   if (!username || !password) {
-    showNotification('Inserisci username e password.', "warn");
+    showNotification("Inserisci username e password.", "warn");
     return;
   }
+
   authenticateUserFromServer(username, password);
 }
 
@@ -292,270 +151,543 @@ function authenticateUserFromServer(username, password) {
       showNotification("Errore durante il login.", "error");
     });
 }
+
 function logout() {
   if (!confirm("Vuoi davvero uscire?")) return;
-  currentUser = null;
-  toggleSections(false);
-  showNotification("Sei uscito con successo.", "success");
+
+  apiPost("/api/logout", {})
+    .catch(err => {
+      console.error("Errore logout:", err);
+    })
+    .finally(() => {
+      currentUser = null;
+      toggleSections(false);
+      toggleAdminSection();
+      showNotification("Disconnessione effettuata.", "success");
+    });
 }
 
-/***********************
- *  PRENOTAZIONI via EXPRESS
- ***********************/
-function loadReservationsForSelectedDate() {
-  const selectedDate = getSelectedDate();
-  reservations = {};
+// --- ADMIN SECTION (visibilità) ---
+function toggleAdminSection() {
+  const adminSection = document.getElementById('admin-area');
+  const adminNotes = document.getElementById('admin-notes');
+  const userReservationsSection = document.getElementById('user-reservations-section');
+  const buyCreditsSection = document.getElementById('buy-credits-section');
+  const userCreditsSection = document.getElementById('user-credits-section');
+  const body = document.body;
 
-  apiGet(`/api/reservations?date=${selectedDate}`)
-    .then(list => {
-      list.forEach(r => {
-        const field = r.field;
-        const time  = r.time;
-        const user  = r.user;
+  // box interni specifici dell'area admin
+  const adminUtentiBox  = document.getElementById('admin-utenti');
+  const adminCreditiBox = document.getElementById('admin-crediti');
 
-        if (!reservations[field]) reservations[field] = {};
-        if (!reservations[field][selectedDate]) reservations[field][selectedDate] = {};
-        reservations[field][selectedDate][time] = user;
+  if (currentUser && currentUser.role === 'admin') {
+    if (adminSection) adminSection.style.display = 'block';
+    if (adminNotes) {
+      adminNotes.style.display = 'block';
+      adminNotes.addEventListener('input', saveAdminNotes);
+    }
+    if (userReservationsSection) userReservationsSection.style.display = 'none';
+    if (buyCreditsSection) buyCreditsSection.style.display = 'none';
+    if (userCreditsSection) userCreditsSection.style.display = 'none';
+    body.classList.add('admin-visible');
+
+    // apri di default le sotto-sezioni principali
+    if (adminUtentiBox)  adminUtentiBox.classList.remove('hidden');
+    if (adminCreditiBox) adminCreditiBox.classList.remove('hidden');
+
+    // popola tabella utenti
+    if (typeof populateCredentialsTable === 'function') {
+      populateCredentialsTable();
+    }
+  } else {
+    if (adminSection) adminSection.style.display = 'none';
+    if (adminNotes) {
+      adminNotes.style.display = 'none';
+      adminNotes.removeEventListener('input', saveAdminNotes);
+    }
+    if (userReservationsSection) userReservationsSection.style.display = 'block';
+    if (buyCreditsSection) buyCreditsSection.style.display = 'block';
+    if (userCreditsSection) userCreditsSection.style.display = 'block';
+    body.classList.remove('admin-visible');
+  }
+}
+
+// --- CREDITS UTENTE / ADMIN ---
+async function updateUserCreditsUI() {
+  if (!currentUser) return;
+
+  apiGet(`/api/users/${currentUser.username}/credits`)
+    .then(data => {
+      const credits = data.credits ?? 0;
+      const el = document.getElementById("user-credits");
+      if (el) el.textContent = `Crediti: ${credits}`;
+    })
+    .catch(err => {
+      console.error("Errore nel recupero crediti utente:", err);
+    });
+}
+
+function startUserCreditsListener() {
+  // niente realtime: aggiorniamo solo una volta al login
+  updateUserCreditsUI();
+}
+
+async function startAdminCreditsListener() {
+  const tbody = document.getElementById('credits-table');
+  if (!tbody) return;
+
+  try {
+    const users = await apiGet("/api/users");
+    users.sort((a, b) => {
+      const getNum = (id) => {
+        const lower = id.toLowerCase();
+        if (lower.startsWith("ombrellone")) {
+          const numStr = id.slice("ombrellone".length);
+          const n = parseInt(numStr, 10);
+          return isNaN(n) ? 999999 : n;
+        } else if (lower.startsWith("user")) {
+          const numStr = id.slice(4);
+          const n = parseInt(numStr, 10);
+          return isNaN(n) ? 999999 : n;
+        } else {
+          return 999999;
+        }
+      };
+      return getNum(a.username) - getNum(b.username);
+    });
+
+    tbody.innerHTML = "";
+
+    users.forEach(u => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${u.username}</td>
+        <td>${u.credits ?? 0}</td>
+        <td>
+          <button onclick="openAdminCreditModal('${u.username}', ${u.credits ?? 0})">
+            <i class="fas fa-coins"></i> Modifica
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  } catch (err) {
+    console.error("Errore caricamento crediti utenti:", err);
+  }
+}
+
+function openAdminCreditModal(username, currentCredits) {
+  const amount = prompt(`Imposta i crediti per ${username} (valore attuale: ${currentCredits})`);
+  if (amount === null) return;
+  const newVal = parseInt(amount, 10);
+  if (isNaN(newVal) || newVal < 0) {
+    showNotification("Valore crediti non valido.", "error");
+    return;
+  }
+
+  apiPatch(`/api/users/${username}/credits`, { set: newVal })
+    .then(() => {
+      showNotification(`Crediti aggiornati per ${username} a ${newVal}.`, "success");
+      if (currentUser && currentUser.username === username) {
+        updateUserCreditsUI();
+      }
+      startAdminCreditsListener();
+    })
+    .catch(err => {
+      console.error("Errore aggiornamento crediti admin:", err);
+      showNotification("Errore nell'aggiornamento dei crediti.", "error");
+    });
+}
+
+// --- COMPRA CREDITI (Stripe client-side stub) ---
+function setupBuyCreditsButtons() {
+  const buttons = document.querySelectorAll("[data-credits]");
+  buttons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const credits = parseInt(btn.getAttribute("data-credits"), 10);
+      if (!currentUser) {
+        showNotification("Effettua il login per acquistare crediti.", "warn");
+        return;
+      }
+
+      // Qui ora salviamo solo "pending" lato client
+      localStorage.setItem(
+        "pendingCreditPurchase",
+        JSON.stringify({
+          username: currentUser.username,
+          date: new Date().toISOString(),
+          credits
+        })
+      );
+
+      // TODO: qui andrebbe integrata la chiamata a /api/payments/create-checkout-session
+      showNotification(
+        `Simulazione acquisto di ${credits} crediti. (Stripe lato server da integrare)`,
+        "info"
+      );
+    });
+  });
+}
+
+// --- NOTE ADMIN ---
+function loadAdminNotes() {
+  apiGet("/api/admin/notes")
+    .then(data => {
+      const text = data.text || "";
+      const notesEl = document.getElementById("admin-notes-text");
+      if (notesEl) {
+        notesEl.textContent = text;
+      }
+      const textarea = document.getElementById("admin-notes");
+      if (textarea) {
+        textarea.value = text;
+      }
+    })
+    .catch(err => {
+      console.error("Errore nel caricamento delle note admin:", err);
+    });
+}
+
+function saveAdminNotes() {
+  if (!(currentUser && currentUser.role === "admin")) return;
+
+  const textarea = document.getElementById("admin-notes");
+  if (!textarea) return;
+  const text = textarea.value || "";
+
+  apiPut("/api/admin/notes", { text })
+    .then(() => {
+      const notesEl = document.getElementById("admin-notes-text");
+      if (notesEl) notesEl.textContent = text;
+    })
+    .catch(err => {
+      console.error("Errore salvataggio note admin:", err);
+      showNotification("Errore nel salvataggio delle note.", "error");
+    });
+}
+
+// --- IMMAGINI ADMIN (LOGIN + APP) ---
+function applyImagesToDOM(images) {
+  const loginContainer = document.getElementById("login-images-container");
+  const appContainer = document.getElementById("app-images-container");
+
+  if (loginContainer) loginContainer.innerHTML = "";
+  if (appContainer) appContainer.innerHTML = "";
+
+  const maxImages = 12;
+  for (let i = 1; i <= maxImages; i++) {
+    const url = images[`image${i}URL`];
+    const link = images[`image${i}Link`];
+    const caption = images[`image${i}Caption`] || "";
+
+    if (!url) continue;
+
+    const imgEl = document.createElement("img");
+    imgEl.src = url;
+    imgEl.alt = caption || `Promo ${i}`;
+
+    const linkEl = document.createElement("a");
+    linkEl.href = link || "#";
+    linkEl.target = link ? "_blank" : "_self";
+    linkEl.appendChild(imgEl);
+
+    if (loginContainer) {
+      loginContainer.appendChild(linkEl.cloneNode(true));
+    }
+    if (appContainer) {
+      appContainer.appendChild(linkEl);
+    }
+  }
+}
+
+function loadAdminImages() {
+  apiGet("/api/admin/images")
+    .then(images => {
+      applyImagesToDOM(images);
+      if (currentUser && currentUser.role === "admin") {
+        const form = document.getElementById("admin-images-form");
+        if (form) {
+          for (let i = 1; i <= 12; i++) {
+            const urlInput = form.querySelector(`#image${i}URL`);
+            const linkInput = form.querySelector(`#image${i}Link`);
+            const captionInput = form.querySelector(`#image${i}Caption`);
+
+            if (urlInput) urlInput.value = images[`image${i}URL`] || "";
+            if (linkInput) linkInput.value = images[`image${i}Link`] || "";
+            if (captionInput) captionInput.value = images[`image${i}Caption`] || "";
+          }
+        }
+      }
+    })
+    .catch(err => {
+      console.error("Errore caricamento immagini admin:", err);
+    });
+}
+
+function loadAppImages() {
+  // qui usiamo la stessa API delle immagini admin
+  loadAdminImages();
+}
+
+function saveAdminImages() {
+  if (!(currentUser && currentUser.role === "admin")) {
+    showNotification("Non hai i permessi per modificare le immagini.", "error");
+    return;
+  }
+
+  const form = document.getElementById("admin-images-form");
+  if (!form) return;
+
+  const payload = {};
+  for (let i = 1; i <= 12; i++) {
+    const urlInput = form.querySelector(`#image${i}URL`);
+    const linkInput = form.querySelector(`#image${i}Link`);
+    const captionInput = form.querySelector(`#image${i}Caption`);
+
+    payload[`image${i}URL`] = urlInput?.value || "";
+    payload[`image${i}Link`] = linkInput?.value || "";
+    payload[`image${i}Caption`] = captionInput?.value || "";
+  }
+
+  apiPut("/api/admin/images", payload)
+    .then(() => {
+      showNotification("Immagini aggiornate con successo.", "success");
+      loadAdminImages();
+    })
+    .catch(err => {
+      console.error("Errore salvataggio immagini admin:", err);
+      showNotification("Errore nel salvataggio delle immagini.", "error");
+    });
+}
+
+// --- CONFIG ADMIN (max prenotazioni) ---
+function loadAdminConfig() {
+  apiGet("/api/admin/config")
+    .then(config => {
+      lastLoadedFieldConfig = config;
+      if (config && typeof config.maxBookingsPerUser === "number") {
+        const maxBookingsPerUser = config.maxBookingsPerUser;
+        const inputEl = document.getElementById("maxBookingsPerUser");
+        if (inputEl) inputEl.value = maxBookingsPerUser;
+      }
+    })
+    .catch(err => {
+      console.error("Errore caricamento config admin:", err);
+    });
+}
+
+function saveBookingParameters() {
+  if (!(currentUser && currentUser.role === "admin")) {
+    showNotification("Non hai i permessi per modificare i parametri.", "error");
+    return;
+  }
+  const inputEl = document.getElementById("maxBookingsPerUser");
+  if (!inputEl) return;
+
+  const value = parseInt(inputEl.value, 10);
+  if (isNaN(value) || value < 0) {
+    showNotification("Valore non valido", "error");
+    return;
+  }
+
+  apiPut("/api/admin/config", { maxBookingsPerUser: value })
+    .then(() => {
+      showNotification("Parametri di prenotazione aggiornati.", "success");
+      loadAdminConfig();
+    })
+    .catch(err => {
+      console.error("Errore salvataggio parametri prenotazione:", err);
+      showNotification("Errore nel salvataggio dei parametri.", "error");
+    });
+}
+
+// --- CAMPI (FIELDS) ADMIN ---
+function loadFieldsConfig() {
+  apiGet("/api/admin/fields")
+    .then(data => {
+      const fields = data.fields || [];
+      const container = document.getElementById("admin-fields-container");
+      if (!container) return;
+
+      container.innerHTML = "";
+      fields.forEach(f => {
+        const row = document.createElement("div");
+        row.className = "field-row";
+        row.innerHTML = `
+          <input type="text" class="field-id" value="${f.id}" placeholder="ID campo (es. BeachVolley)" />
+          <input type="text" class="field-name" value="${f.name}" placeholder="Nome campo (es. Beach Volley)" />
+        `;
+        container.appendChild(row);
       });
 
-      populateAllFields();
-      populateAdminTable();
-      if (currentUser && currentUser.role !== "admin") {
-        startUserReservationsListener();
-      }
+      const addBtn = document.createElement("button");
+      addBtn.textContent = "Aggiungi campo";
+      addBtn.type = "button";
+      addBtn.onclick = () => {
+        const row = document.createElement("div");
+        row.className = "field-row";
+        row.innerHTML = `
+          <input type="text" class="field-id" value="" placeholder="ID campo (es. BeachVolley)" />
+          <input type="text" class="field-name" value="" placeholder="Nome campo (es. Beach Volley)" />
+        `;
+        container.insertBefore(row, addBtn);
+      };
+      container.appendChild(addBtn);
+
+      renderFieldsForBooking(fields);
+    })
+    .catch(err => {
+      console.error("Errore caricamento fields:", err);
+    });
+}
+
+function saveFieldsConfig() {
+  if (!(currentUser && currentUser.role === "admin")) {
+    showNotification("Non hai i permessi per modificare i campi.", "error");
+    return;
+  }
+  const container = document.getElementById("admin-fields-container");
+  if (!container) return;
+
+  const rows = container.querySelectorAll(".field-row");
+  const fields = [];
+  rows.forEach(row => {
+    const idInput = row.querySelector(".field-id");
+    const nameInput = row.querySelector(".field-name");
+    const idVal = idInput?.value.trim();
+    const nameVal = nameInput?.value.trim();
+    if (idVal && nameVal) {
+      fields.push({ id: idVal, name: nameVal });
+    }
+  });
+
+  apiPut("/api/admin/fields", { fields })
+    .then(() => {
+      showNotification("Campi aggiornati correttamente.", "success");
+      loadFieldsConfig();
+    })
+    .catch(err => {
+      console.error("Errore salvataggio campi:", err);
+      showNotification("Errore nel salvataggio dei campi.", "error");
+    });
+}
+
+// --- RENDER FIELDS + SLOT ---
+function renderFieldsForBooking(fields) {
+  const container = document.getElementById("fields-container");
+  if (!container) return;
+
+  container.innerHTML = "";
+  fields.forEach(field => {
+    const box = document.createElement("div");
+    box.className = "field-box";
+    box.innerHTML = `
+      <h3>${field.name}</h3>
+      <div class="slot-info" id="slots-${field.id}"></div>
+    `;
+    container.appendChild(box);
+  });
+
+  loadReservationsForSelectedDate();
+}
+
+// --- PRENOTAZIONI (GET + RENDER) ---
+function loadReservationsForSelectedDate() {
+  const date = getSelectedDate();
+  if (lastLoadedDate === date) {
+    return;
+  }
+  lastLoadedDate = date;
+
+  apiGet(`/api/reservations?date=${encodeURIComponent(date)}`)
+    .then(reservations => {
+      renderReservations(date, reservations || []);
     })
     .catch(err => {
       console.error("Errore caricamento prenotazioni:", err);
-      showNotification("Errore caricamento prenotazioni.", "error");
+      showNotification("Errore nel caricamento delle prenotazioni.", "error");
     });
 }
 
-function saveReservationToServer(fieldName, date, time, user, role) {
-  return apiPost("/api/reservations", {
-    field: fieldName,
-    date,
-    time,
-    user,
-    role
-  });
-}
+function renderReservations(date, reservations) {
+  const fields = lastLoadedFieldConfig?.fields || [];
+  fields.forEach(field => {
+    const container = document.getElementById(`slots-${field.id}`);
+    if (!container) return;
+    container.innerHTML = "";
 
-function deleteReservationFromServer(fieldName, date, time, user) {
-  const docId = `${fieldName}_${date}_${time}_${user}`;
-  return apiDelete(`/api/reservations/${encodeURIComponent(docId)}`);
-}
-
-async function getUserTotalReservations() {
-  if (!currentUser) return 0;
-  try {
-    const data = await apiGet(`/api/users/${currentUser.username}/reservations/count`);
-    return data.total || 0;
-  } catch (error) {
-    console.error("Errore nel conteggio delle prenotazioni:", error);
-    showNotification("Errore nel conteggio delle prenotazioni.", "error");
-    return 0;
-  }
-}
-
-function saveReservation(fieldName, date, slot) {
-  saveReservationToServer(
-    fieldName,
-    date,
-    slot,
-    currentUser.username,
-    (currentUser.role === "admin" ? "admin" : "user")
-  )
-    .then(() => {
-      if (currentUser.role !== "admin") {
-        return apiPatch(`/api/users/${currentUser.username}/credits`, { delta: -1 })
-          .then(() => updateUserCreditsUI());
-      }
-    })
-    .then(() => {
-      showNotification(`Prenotazione salvata per ${fieldName} alle ${slot}`, "success");
-      loadReservationsForSelectedDate();
-    })
-    .catch(err => {
-      console.error("Errore salvataggio prenotazione:", err);
-      showNotification("Errore nel salvataggio della prenotazione.", "error");
-    });
-}
-function cancelUserReservation(fieldName, slot) {
-  const selectedDate = getSelectedDate();
-  const today = getTodayDate();
-
-  if (selectedDate === today) {
-    const confirmCancel = confirm(
-      "Se annulli una prenotazione odierna, il credito non verrà rimborsato. Vuoi procedere?"
-    );
-    if (!confirmCancel) return;
-  }
-
-  deleteReservationFromServer(fieldName, selectedDate, slot, currentUser.username)
-    .then(() => {
-      showNotification(
-        `Prenotazione annullata per ${fieldName} alle ${slot} del ${formatDateToDDMMYYYY(selectedDate)}`,
-        "success"
+    const SLOTS = generateSlotsForDay(date);
+    SLOTS.forEach(slot => {
+      const reservation = reservations.find(
+        r => r.field === field.id && r.date === date && r.time === slot
       );
 
-      if (selectedDate > today && currentUser.role !== "admin") {
-        return apiPatch(`/api/users/${currentUser.username}/credits`, { delta: 1 })
-          .then(() => updateUserCreditsUI());
-      }
-    })
-    .then(() => {
-      loadReservationsForSelectedDate();
-    })
-    .catch(err => {
-      console.error("Errore annullamento prenotazione:", err);
-      showNotification("Errore nell'annullamento della prenotazione.", "error");
-    });
-}
+      const div = document.createElement("div");
+      div.className = "slot";
+      div.textContent = slot;
 
-/***********************
- *  UI CAMPI E SLOT
- ***********************/
-const TIME_SLOTS = [
-  "08:45","09:30","10:15",
-  "11:00","11:45","12:30","13:15",
-  "14:00","14:45","15:30","16:15",
-  "17:00","17:45","18:30","19:15"
-];
-const SLOT_LEN = 45;
-
-function populateAllFields() {
-  createFieldBoxesDynamically();
-  fieldsList.forEach(fieldObj => populateFieldSlots(fieldObj.id));
-  setupFieldClickToggles();
-}
-function createFieldBoxesDynamically() {
-  const mainContainer = document.getElementById("fields-container");
-  if (!mainContainer) return;
-
-  mainContainer.innerHTML = "";
-  fieldsList.forEach(fieldObj => {
-    const box = document.createElement("div");
-    box.classList.add("field-box");
-    box.id = `field-${fieldObj.id}`;
-
-    const title = document.createElement("h3");
-    title.textContent = fieldObj.name;
-    box.appendChild(title);
-
-    const slotDiv = document.createElement("div");
-    slotDiv.classList.add("slot-info");
-    slotDiv.id = `slots-${fieldObj.id}`;
-    box.appendChild(slotDiv);
-
-    mainContainer.appendChild(box);
-  });
-}
-function getSlotIntervalLabel(startTime) {
-  const idx = TIME_SLOTS.indexOf(startTime);
-  if (idx !== -1 && idx < TIME_SLOTS.length - 1) {
-    return `${startTime} - ${TIME_SLOTS[idx + 1]}`;
-  }
-  const [h, m] = startTime.split(":").map(Number);
-  const end = new Date(0, 0, 0, h, m + SLOT_LEN);
-  return `${startTime} - ${String(end.getHours()).padStart(2, "0")}:${String(end.getMinutes()).padStart(2, "0")}`;
-}
-function askBookingConfirmation(fieldName, slot, isoDate) {
-  const intervalLabel = getSlotIntervalLabel(slot);
-  const displayDate   = formatDateToDDMMYYYY(isoDate);
-  const msg = `Confermi la prenotazione per il campo “${fieldName}”\n` +
-              `il ${displayDate} – ${intervalLabel}?`;
-  return confirm(msg);
-}
-function populateFieldSlots(fieldName) {
-  const selectedDate = getSelectedDate();
-  const container = document.getElementById(`slots-${fieldName}`);
-  if (!container) return;
-
-  if (!reservations[fieldName]) reservations[fieldName] = {};
-  if (!reservations[fieldName][selectedDate]) reservations[fieldName][selectedDate] = {};
-  container.innerHTML = '';
-
-  TIME_SLOTS.forEach(slot => {
-    const slotDiv = document.createElement('div');
-    slotDiv.id = `slot-${fieldName}-${slot.replace(":", "")}`;
-    slotDiv.classList.add('slot');
-
-    const intervalLabel = getSlotIntervalLabel(slot);
-    const bookedBy = reservations[fieldName][selectedDate][slot];
-
-    if (bookedBy) {
-      if (currentUser && bookedBy === currentUser.username) {
-        slotDiv.classList.add('my-booking');
-        slotDiv.textContent = `${intervalLabel} - Prenotato da Te`;
-        slotDiv.onclick = () => cancelUserReservation(fieldName, slot);
-      } else if (currentUser && currentUser.role === "admin") {
-        slotDiv.classList.add('unavailable');
-        slotDiv.textContent = `${intervalLabel} - Prenotato da ${bookedBy}`;
+      if (reservation) {
+        if (reservation.role === "admin") {
+          div.classList.add("admin-slot");
+        } else if (currentUser && reservation.user === currentUser.username) {
+          div.classList.add("mine");
+        } else {
+          div.classList.add("unavailable");
+        }
       } else {
-        slotDiv.classList.add('unavailable');
-        slotDiv.textContent = `${intervalLabel} - Prenotato`;
+        div.classList.add("available");
       }
-    } else {
-      slotDiv.classList.add('available');
-      slotDiv.textContent = `${intervalLabel} - Disponibile`;
-      slotDiv.onclick = () => bookSlot(fieldName, slot);
-    }
 
-    container.appendChild(slotDiv);
-  });
-}
-function scrollToSlot(fieldName, slot) {
-  fieldOpenState[fieldName] = true;
-  const slotContainer = document.getElementById(`slots-${fieldName}`);
-  if (slotContainer) slotContainer.classList.remove('hidden');
-  const slotId = `slot-${fieldName}-${slot.replace(":", "")}`;
-  const slotEl = document.getElementById(slotId);
-  if (slotEl) slotEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
-/***********************
- *  TOGGLE CAMPI & ADMIN
- ***********************/
-let fieldOpenState = {};
-function setupFieldClickToggles(){
-  fieldsList.forEach(fieldObj=>{
-    const fieldName = fieldObj.id;
-
-    if(fieldOpenState[fieldName]===undefined){
-      fieldOpenState[fieldName] = false;
-    }
-
-    const fieldContainer = document.getElementById(`field-${fieldName}`);
-    const slotContainer  = document.getElementById(`slots-${fieldName}`);
-    if(!fieldContainer||!slotContainer) return;
-
-    slotContainer.classList.toggle('hidden', !fieldOpenState[fieldName]);
-
-    const title = fieldContainer.querySelector('h3');
-    if(title){
-      title.style.cursor='pointer';
-      title.addEventListener('click',()=>{
-        fieldOpenState[fieldName]=!fieldOpenState[fieldName];
-        slotContainer.classList.toggle('hidden');
+      div.addEventListener("click", () => {
+        handleSlotClick(field, slot, reservation);
       });
-    }
-  });
-}
-function setupAdminSectionToggles(){
-  document.querySelectorAll('.admin-toggle').forEach(title=>{
-    const targetId = title.dataset.target;
-    const target   = document.getElementById(targetId);
-    if(!target) return;
 
-    target.classList.add('hidden');
-    title.style.cursor = 'pointer';
-    title.addEventListener('click', ()=> target.classList.toggle('hidden'));
+      container.appendChild(div);
+    });
   });
 }
 
-/***********************
- *  BOOK / CANCEL
- ***********************/
+function generateSlotsForDay(date) {
+  // slot di 45 minuti dalle 8:00 alle 23:00 (modifica se vuoi)
+  const startHour = 8;
+  const endHour = 23;
+  const slotMinutes = 45;
+  const slots = [];
+
+  const base = new Date(`${date}T${String(startHour).padStart(2, "0")}:00:00`);
+  const end = new Date(`${date}T${String(endHour).padStart(2, "0")}:00:00`);
+
+  let current = new Date(base.getTime());
+  while (current <= end) {
+    const h = String(current.getHours()).padStart(2, "0");
+    const m = String(current.getMinutes()).padStart(2, "0");
+    slots.push(`${h}:${m}`);
+    current = new Date(current.getTime() + slotMinutes * 60000);
+  }
+
+  return slots;
+}
+
+// --- GESTIONE SLOT (BOOK / CANCEL) ---
+function handleSlotClick(field, slot, reservation) {
+  if (!currentUser) {
+    showNotification("Effettua il login per prenotare.", "warn");
+    return;
+  }
+
+  if (reservation && reservation.user === currentUser.username) {
+    cancelUserReservation(field.name, slot);
+    return;
+  }
+
+  if (!reservation) {
+    bookSlot(field.name, slot);
+    return;
+  }
+
+  showNotification("Slot già prenotato.", "warn");
+}
+
 function bookSlot(fieldName, slot) {
   if (!currentUser) return;
 
@@ -583,72 +715,135 @@ function bookSlot(fieldName, slot) {
       .then(data => {
         const credits = data.credits ?? 0;
         if (credits <= 0) {
-          showNotification("Non hai crediti sufficienti.", "error");
+          showNotification("Non hai crediti sufficienti per prenotare.", "error");
           return;
         }
-        return getUserTotalReservations().then(total => {
-          if (total >= maxBookingsPerUser) {
-            showNotification(`Hai già raggiunto il numero massimo di prenotazioni (${maxBookingsPerUser}).`, "warn");
-            return;
-          }
-          if (askBookingConfirmation(fieldName, slot, selectedDate)) {
-            saveReservation(fieldName, selectedDate, slot);
-          }
-        });
+        internalBookSlotWithCredits(fieldName, slot);
       })
-      .catch(error => {
-        console.error("Errore nel controllo dei crediti:", error);
-        showNotification("Errore nel controllo dei crediti.", "error");
+      .catch(err => {
+        console.error("Errore lettura crediti per prenotazione:", err);
+        showNotification("Errore nel controllo crediti.", "error");
       });
   } else {
-    if (askBookingConfirmation(fieldName, slot, selectedDate)) {
-      saveReservation(fieldName, selectedDate, slot);
-    }
+    internalBookSlotWithCredits(fieldName, slot, true);
   }
 }
 
-/***********************
- *  ADMIN – TABELLE, NOTE, UTENTI
- ***********************/
-function populateAdminTable() {
+function internalBookSlotWithCredits(fieldName, slot, isAdmin = false) {
+  if (bookingInProgress) return;
+  bookingInProgress = true;
+
   const selectedDate = getSelectedDate();
-  const displayedDate = formatDateToDDMMYYYY(selectedDate);
-  const tbody = document.getElementById('admin-table');
-  if (!tbody) return;
-  tbody.innerHTML = '';
+  const payload = {
+    field: fieldName,
+    date: selectedDate,
+    time: slot
+  };
 
-  for (let field in reservations) {
-    if (reservations[field][selectedDate]) {
-      for (let time in reservations[field][selectedDate]) {
-        const user = reservations[field][selectedDate][time];
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${field}</td>
-          <td>${displayedDate}</td>
-          <td>${time}</td>
-          <td>${user}</td>
-          <td>
-            <button class="cancel-btn" onclick="deleteAdminReservation('${field}','${selectedDate}','${time}','${user}')">
-              <i class="fas fa-trash-alt"></i> C
-            </button>
-          </td>
-        `;
-        tbody.appendChild(tr);
-      }
-    }
-  }
-}
-function deleteAdminReservation(fieldName, date, time, user) {
-  deleteReservationFromServer(fieldName, date, time, user)
-    .then(() => {
-      showNotification(`Prenotazione per ${fieldName} alle ${time} dell'utente ${user} eliminata.`, "success");
+  apiPost("/api/reservations", payload)
+    .then(reservation => {
+      showNotification(
+        `Prenotazione effettuata per ${fieldName} alle ${slot} del ${selectedDate}.`,
+        "success"
+      );
+      lastLoadedDate = null;
       loadReservationsForSelectedDate();
+      if (!isAdmin) {
+        apiPatch(`/api/users/${currentUser.username}/credits`, { delta: -1 })
+          .then(() => updateUserCreditsUI())
+          .catch(err => console.error("Errore aggiornamento crediti dopo prenotazione:", err));
+      }
     })
     .catch(err => {
-      console.error('Errore durante la cancellazione:', err);
+      console.error("Errore creazione prenotazione:", err);
+      showNotification("Errore durante la prenotazione.", "error");
+    })
+    .finally(() => {
+      bookingInProgress = false;
+    });
+}
+
+function cancelUserReservation(fieldName, slot) {
+  const selectedDate = getSelectedDate();
+  const today = getTodayDate();
+
+  if (selectedDate === today) {
+    const confirmCancel = confirm(
+      "Se annulli una prenotazione odierna, il credito non verrà rimborsato. Vuoi procedere?"
+    );
+    if (!confirmCancel) return;
+  }
+
+  deleteReservationFromServer(fieldName, selectedDate, slot, currentUser.username)
+    .then(() => {
+      showNotification(
+        `Prenotazione annullata per ${fieldName} alle ${slot} del ${selectedDate}.`,
+        "success"
+      );
+      lastLoadedDate = null;
+      loadReservationsForSelectedDate();
+      if (selectedDate > today) {
+        apiPatch(`/api/users/${currentUser.username}/credits`, { delta: +1 })
+          .then(() => updateUserCreditsUI())
+          .catch(err => console.error("Errore nel rimborso credito:", err));
+      }
+    })
+    .catch(() => {
       showNotification("Errore durante la cancellazione.", "error");
     });
 }
+
+function deleteReservationFromServer(fieldName, date, slot, username) {
+  const fakeReservationId = `${fieldName}_${date}_${slot}_${username}`.replace(/\s+/g, "");
+  return apiDelete(`/api/reservations/${encodeURIComponent(fakeReservationId)}`);
+}
+
+// --- ADMIN: GESTIONE PRENOTAZIONI LISTA ---
+function loadAdminReservationsList() {
+  apiGet(`/api/reservations?date=${encodeURIComponent(getSelectedDate())}`)
+    .then(reservations => {
+      const tbody = document.getElementById("admin-table");
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+      reservations.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${r.field}</td>
+          <td>${r.date}</td>
+          <td>${r.time}</td>
+          <td>${r.user}</td>
+          <td>${r.role}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    })
+    .catch(err => {
+      console.error("Errore caricamento lista prenotazioni admin:", err);
+    });
+}
+
+// --- ADMIN: RESET PRENOTAZIONI PASSATE ---
+function resetPastReservations() {
+  if (!(currentUser && currentUser.role === "admin")) {
+    showNotification("Non hai i permessi per questa operazione.", "error");
+    return;
+  }
+  if (!confirm("Vuoi davvero spostare le prenotazioni passate nello storico?")) return;
+
+  apiPost("/api/reservations/reset-past", {})
+    .then(data => {
+      showNotification(`Spostate ${data.movedCount || 0} prenotazioni nello storico.`, "success");
+      lastLoadedDate = null;
+      loadReservationsForSelectedDate();
+    })
+    .catch(err => {
+      console.error("Errore reset prenotazioni passate:", err);
+      showNotification("Errore nel reset delle prenotazioni.", "error");
+    });
+}
+
+// --- ADMIN: GESTIONE UTENTI (CREDENZIALI / STATO / PASSWORD) ---
 async function populateCredentialsTable() {
   const tbody = document.getElementById('credentials-table');
   if (!tbody) return;
@@ -696,12 +891,15 @@ async function populateCredentialsTable() {
       `;
       tbody.appendChild(tr);
     });
-  } catch (err) {
-    console.error("Errore caricamento utenti admin:", err);
+  } catch (error) {
+    console.error("Errore caricamento utenti:", error);
+    showNotification("Errore nel caricamento degli utenti.", "error");
   }
 }
-function toggleUserStatus(username, isDisabled) {
-  const newStatus = !isDisabled;
+
+function toggleUserStatus(username, currentDisabled) {
+  const newStatus = !currentDisabled;
+
   apiPatch(`/api/users/${username}/status`, { disabled: newStatus })
     .then(() => {
       showNotification(`Stato di ${username} aggiornato a ${newStatus ? "Disabilitato" : "Attivo"}.`, "success");
@@ -709,15 +907,17 @@ function toggleUserStatus(username, isDisabled) {
     })
     .catch(error => {
       console.error("Errore nell'aggiornamento dello stato utente:", error);
-      showNotification("Errore durante l'aggiornamento dello stato dell'utente.", "error");
+      showNotification("Errore nell'aggiornamento dello stato utente.", "error");
     });
 }
+
 function modifyUserPassword(username) {
   const newPassword = prompt(`Inserisci la nuova password per ${username}:`);
   if (!newPassword) {
-    alert("Modifica annullata.");
+    showNotification("Password non modificata.", "warn");
     return;
   }
+
   apiPatch(`/api/users/${username}/password`, { password: newPassword })
     .then(() => {
       showNotification(`Password aggiornata per ${username}.`, "success");
@@ -725,448 +925,92 @@ function modifyUserPassword(username) {
     })
     .catch(error => {
       console.error("Errore nell'aggiornamento della password:", error);
-      showNotification("Errore durante la modifica della password.", "error");
+      showNotification("Errore nell'aggiornamento della password.", "error");
     });
 }
 
-/***********************
- *  NOTE & IMMAGINI via EXPRESS
- ***********************/
-function loadAdminNotes() {
-  apiGet("/api/admin/notes")
-    .then(data => {
-      const noteText = data.text || "";
-      const notesContent = document.getElementById("notes-content");
-      const adminNotes = document.getElementById("admin-notes");
-      if (notesContent) notesContent.textContent = noteText;
-      if (adminNotes && currentUser && currentUser.role === "admin") {
-        adminNotes.value = noteText;
-      }
-    })
-    .catch(err => {
-      console.error("Errore caricamento note admin:", err);
-    });
+// --- METEO (Open-Meteo) ---
+const METEO_LAT = 43.722; // Senigallia approx
+const METEO_LON = 13.214;
+
+function weatherEmoji(code) {
+  if ([0].includes(code)) return "☀️";
+  if ([1, 2].includes(code)) return "🌤️";
+  if ([3].includes(code)) return "☁️";
+  if ([45, 48].includes(code)) return "🌫️";
+  if ([51, 53, 55].includes(code)) return "🌦️";
+  if ([56, 57].includes(code)) return "🌧️";
+  if ([61, 63, 65].includes(code)) return "🌧️";
+  if ([66, 67].includes(code)) return "🌧️";
+  if ([71, 73, 75].includes(code)) return "❄️";
+  if ([77].includes(code)) return "🌨️";
+  if ([80, 81, 82].includes(code)) return "🌦️";
+  if ([85, 86].includes(code)) return "🌨️";
+  if ([95, 96, 99].includes(code)) return "⛈️";
+  return "❔";
 }
-function saveAdminNotes() {
-  if (!(currentUser && currentUser.role === "admin")) {
-    showNotification("Non hai i permessi per modificare le note.", "error");
-    return;
-  }
-  const text = document.getElementById("admin-notes").value;
-  apiPut("/api/admin/notes", { text })
-    .then(() => showNotification("Note salvate con successo.", "success"))
-    .catch(err => {
-      console.error("Errore salvataggio note:", err);
-      showNotification("Errore durante il salvataggio delle note.", "error");
-    });
+
+function weekdayShort(dateStr){
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '');
 }
-function renderAppImages(imagesData) {
-  const container = document.getElementById("app-images-container");
-  if (!container) return;
-  container.innerHTML = "";
 
-  for (let i = 1; i <= 8; i++) {
-    const url  = imagesData[`image${i}URL`]   || "";
-    const link = imagesData[`image${i}Link`]  || "";
-    const cap  = imagesData[`image${i}Caption`] || "";
+async function loadDailyWeather(days=6){
+  const el = document.getElementById('weather-forecast');
+  if (!el) return;
 
-    if (!url) continue;
+  try{
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${METEO_LAT}&longitude=${METEO_LON}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("Errore richiesta meteo");
+    const data = await res.json();
 
-    const fig = document.createElement("figure");
-    fig.classList.add("img-caption");
+    el.innerHTML = "";
+    const codes = data.daily.weathercode;
+    const tMax  = data.daily.temperature_2m_max;
+    const tMin  = data.daily.temperature_2m_min;
+    const dates = data.daily.time;
 
-    const a = document.createElement("a");
-    a.href   = link || "#";
-    a.target = "_blank";
+    for(let i=0; i<Math.min(days, dates.length); i++){
+      const div = document.createElement("div");
+      div.className = "hour-chip";
 
-    const img = document.createElement("img");
-    img.src = url;
-    img.alt = `Immagine ${i}`;
+      const emoji = weatherEmoji(codes[i]);
+      const wday  = weekdayShort(dates[i]);
+      const max   = Math.round(tMax[i]);
+      const min   = Math.round(tMin[i]);
 
-    a.appendChild(img);
-    fig.appendChild(a);
-
-    if (cap) {
-      const fc = document.createElement("figcaption");
-      fc.textContent = cap;
-      fig.appendChild(fc);
+      div.innerHTML = `
+        <span class="em">${emoji}</span>
+        <span class="hh">${wday.toUpperCase()} • ${max}° / ${min}°</span>
+      `;
+      el.appendChild(div);
     }
-
-    container.appendChild(fig);
-  }
-}
-function loadAppImages() {
-  apiGet("/api/admin/images")
-    .then(images => {
-      renderAppImages(images);
-    })
-    .catch(err => {
-      console.error("Errore caricamento immagini app:", err);
-    });
-}
-function loadAdminImages() {
-  const containerTop    = document.getElementById("login-images-container-top");
-  const containerBottom = document.getElementById("login-images-container-bottom");
-
-  apiGet("/api/admin/images")
-    .then(images => {
-      if (containerTop) containerTop.innerHTML = "";
-      if (containerBottom) containerBottom.innerHTML = "";
-
-      for (let i = 1; i <= 12; i++) {
-        const url  = images[`image${i}URL`]     || "";
-        const link = images[`image${i}Link`]    || "";
-        const cap  = images[`image${i}Caption`] || "";
-
-        if (!url) continue;
-
-        const fig = document.createElement("figure");
-        fig.classList.add("img-caption");
-
-        const a   = document.createElement("a");
-        a.href    = link || "#";
-        a.target  = "_blank";
-
-        const img = document.createElement("img");
-        img.src   = url;
-        img.alt   = `Immagine ${i}`;
-
-        a.appendChild(img);
-        fig.appendChild(a);
-
-        if (cap) {
-          const fc = document.createElement("figcaption");
-          fc.textContent = cap;
-          fig.appendChild(fc);
-        }
-
-        if (containerTop && i <= 8) containerTop.appendChild(fig);
-        else if (containerBottom && i > 8) containerBottom.appendChild(fig);
-
-        if (currentUser && currentUser.role === "admin") {
-          const urlInput  = document.getElementById(`image${i}URL`);
-          const linkInput = document.getElementById(`image${i}Link`);
-          const capInput  = document.getElementById(`image${i}Caption`);
-          if (urlInput)  urlInput.value  = url;
-          if (linkInput) linkInput.value = link;
-          if (capInput)  capInput.value  = cap;
-        }
-      }
-    })
-    .catch(err => {
-      console.error("Errore caricamento immagini login:", err);
-    });
-}
-function saveAdminImages() {
-  if (!(currentUser && currentUser.role === "admin")) {
-    showNotification("Non hai i permessi per modificare le immagini.", "error");
-    return;
-  }
-  const payload = {};
-  for (let i = 1; i <= 12; i++) {
-    const urlInput  = document.getElementById(`image${i}URL`);
-    const linkInput = document.getElementById(`image${i}Link`);
-    const capInput  = document.getElementById(`image${i}Caption`);
-    payload[`image${i}URL`]     = urlInput  ? urlInput.value.trim()  : "";
-    payload[`image${i}Link`]    = linkInput ? linkInput.value.trim() : "";
-    payload[`image${i}Caption`] = capInput  ? capInput.value.trim()  : "";
-  }
-  apiPut("/api/admin/images", payload)
-    .then(() => {
-      showNotification("Immagini salvate con successo.", "success");
-      loadAdminImages();
-      loadAppImages();
-    })
-    .catch(err => {
-      console.error("Errore salvataggio immagini:", err);
-      showNotification("Errore durante il salvataggio delle immagini.", "error");
-    });
-}
-
-/***********************
- *  “LE MIE PRENOTAZIONI” (UTENTE)
- *  (versione semplificata: mostra solo la data selezionata)
- ***********************/
-function startUserReservationsListener() {
-  if (!currentUser) return;
-
-  const container = document.getElementById('user-reservations');
-  const section = document.getElementById('user-reservations-section');
-  if (!container || !section) return;
-
-  const selectedDate = getSelectedDate();
-  container.innerHTML = '';
-
-  const fieldNames = Object.keys(reservations || {});
-  const items = [];
-
-  fieldNames.forEach(field => {
-    const dayObj = reservations[field] && reservations[field][selectedDate];
-    if (!dayObj) return;
-    Object.keys(dayObj).forEach(time => {
-      const user = dayObj[time];
-      if (user === currentUser.username) {
-        items.push({ date: selectedDate, time, field });
-      }
-    });
-  });
-
-  items.sort((a, b) => a.time.localeCompare(b.time));
-
-  if (!items.length) {
-    container.innerHTML = "<p>Nessuna prenotazione trovata per la data selezionata.</p>";
-    return;
-  }
-
-  items.forEach(({ date, time, field }) => {
-    const displayDate = formatDateToDDMMYYYY(date);
-    const el = document.createElement('div');
-    el.classList.add('user-reservation-item');
-    el.textContent = `${displayDate} - ${time} - ${field}`;
-    el.style.cursor = 'pointer';
-
-    el.addEventListener('click', () => {
-      const dp = document.getElementById('booking-date');
-      if (dp) dp.value = date;
-      loadReservationsForSelectedDate();
-      setTimeout(() => scrollToSlot(field, time), 600);
-    });
-
-    container.appendChild(el);
-  });
-}
-
-/***********************
- *  MOSTRA/NASCONDI SEZIONI
- ***********************/
-function toggleSections(isLoggedIn) {
-  const loginArea = document.getElementById('login-area');
-  const appArea = document.getElementById('app-area');
-
-  if (!loginArea || !appArea) return;
-
-  // login visibile solo se NON loggato
-  loginArea.style.display = isLoggedIn ? 'none' : 'flex';
-  // app visibile solo se loggato
-  appArea.style.display = isLoggedIn ? 'block' : 'none';
-
-  if (isLoggedIn) {
-    window.scrollTo(0, 0);
-  }
-}
-function toggleAdminSection() {
-  const adminSection = document.getElementById('admin-area');
-  const adminNotes = document.getElementById('admin-notes');
-  const userReservationsSection = document.getElementById('user-reservations-section');
-  const buyCreditsSection = document.getElementById('buy-credits-section');
-  const userCreditsSection = document.getElementById('user-credits-section');
-  const body = document.body;
-
-  if (currentUser && currentUser.role === 'admin') {
-    if (adminSection) adminSection.style.display = 'block';
-    if (adminNotes) {
-      adminNotes.style.display = 'block';
-      adminNotes.addEventListener('input', saveAdminNotes);
-    }
-    if (userReservationsSection) userReservationsSection.style.display = 'none';
-    if (buyCreditsSection) buyCreditsSection.style.display = 'none';
-    if (userCreditsSection) userCreditsSection.style.display = 'none';
-    body.classList.add('admin-visible');
-  } else {
-    if (adminSection) adminSection.style.display = 'none';
-    if (adminNotes) {
-      adminNotes.style.display = 'none';
-      adminNotes.removeEventListener('input', saveAdminNotes);
-    }
-    if (userReservationsSection) userReservationsSection.style.display = 'block';
-    if (buyCreditsSection) buyCreditsSection.style.display = 'block';
-    if (userCreditsSection) userCreditsSection.style.display = 'block';
-    body.classList.remove('admin-visible');
+  }catch(e){
+    console.error("Errore meteo:", e);
   }
 }
 
-/***********************
- *  RESET AUTOMATICO (usa Express)
- ***********************/
+// --- RESET AUTO ALLE 7:50 PER MODALITA' GIORNALIERA ---
 function checkAndResetAfterSevenFifty() {
-  const lastResetDate = localStorage.getItem('lastResetDate');
-  const today = getTodayDate();
-  const now = new Date();
-  if (lastResetDate !== today) {
-    if (now.getHours() > 7 || (now.getHours() === 7 && now.getMinutes() >= 50)) {
-      resetAllReservations();
-      localStorage.setItem('lastResetDate', today);
-    }
-  }
-}
-function resetAllReservations() {
-  apiPost("/api/reservations/reset-past", {})
-    .then(res => {
-      showNotification("Prenotazioni passate spostate nell'archivio.", "success");
-      loadReservationsForSelectedDate();
-    })
-    .catch(err => {
-      console.error("Errore durante il reset delle prenotazioni:", err);
-      showNotification("Errore durante il reset delle prenotazioni.", "error");
-    });
+  // ora non usiamo più Firestore, quindi questa funzione può essere vuota o rimossa
+  // la lasciamo come placeholder nel caso serva logica in futuro
 }
 
-/***********************
- *  ACQUISTO CREDITI – STRIPE
- ***********************/
-function isOmbrelloneSpecial(username) {
-  const specialOmbrelloni = ["ospite1","ospite2","ospite3","ospite4","ospite5","delfino1","delfino2","delfino3","delfino4","delfino5"];
-  return specialOmbrelloni.includes(username.toLowerCase());
-}
-function setupBuyCreditsButtons() {
-  if (!currentUser) return;
+// --- ADMIN: TOGGLE SEZIONI COLLASSABILI ---
+function setupAdminSectionToggles(){
+  document.querySelectorAll('.admin-toggle').forEach(title=>{
+    const targetId = title.dataset.target;
+    const target   = document.getElementById(targetId);
+    if(!target) return;
 
-  const buy1CreditsBtn = document.getElementById("buy-credits-1");
-  const buy2CreditsBtn = document.getElementById("buy-credits-2");
-  const buy5CreditsBtn = document.getElementById("buy-credits-5");
-
-  const specialBuyContainer = document.getElementById("special-buy-container");
-  const specialBuyBtn = document.getElementById("buy-special");
-
-  function preparePurchase(button, credits, url) {
-    if (!button) return;
-    button.onclick = () => {
-      if (!currentUser) {
-        alert("Devi essere loggato per acquistare crediti!");
-        return;
-      }
-      localStorage.setItem("pendingUser", currentUser.username);
-      localStorage.setItem("pendingCredits", String(credits));
-      window.location.href = url;
-    };
-  }
-
-  if (isOmbrelloneSpecial(currentUser.username)) {
-    if (buy1CreditsBtn) buy1CreditsBtn.style.display = "none";
-    if (buy2CreditsBtn) buy2CreditsBtn.style.display = "none";
-    if (buy5CreditsBtn) buy5CreditsBtn.style.display = "none";
-    if (specialBuyContainer) specialBuyContainer.style.display = "block";
-
-    preparePurchase(specialBuyBtn, 1, "https://buy.stripe.com/00waEPbnf6le1vxd8518c06");
-  } else {
-    if (buy1CreditsBtn) buy1CreditsBtn.style.display = "inline-block";
-    if (buy2CreditsBtn) buy2CreditsBtn.style.display = "inline-block";
-    if (buy5CreditsBtn) buy5CreditsBtn.style.display = "inline-block";
-    if (specialBuyContainer) specialBuyContainer.style.display = "none";
-
-    preparePurchase(buy1CreditsBtn, 1, "https://buy.stripe.com/fZeaGn09h6cU2Zi003");
-    preparePurchase(buy2CreditsBtn, 2, "https://buy.stripe.com/6oEcOv09h58Q57qbIM");
-    preparePurchase(buy5CreditsBtn, 5, "https://buy.stripe.com/5kA9Cj4px8l2czS9AF");
-  }
-}
-
-/***********************
- *  CONFIG ADMIN & CAMPI via EXPRESS
- ***********************/
-function loadAdminConfig() {
-  apiGet("/api/admin/config")
-    .then(config => {
-      if (config.maxBookingsPerUser !== undefined) {
-        maxBookingsPerUser = config.maxBookingsPerUser;
-        const inputEl = document.getElementById("maxBookingsPerUser");
-        if (inputEl) inputEl.value = maxBookingsPerUser;
-      }
-    })
-    .catch(err => {
-      console.error("Errore caricamento config admin:", err);
-    });
-}
-function saveBookingParameters() {
-  if (!(currentUser && currentUser.role === "admin")) {
-    showNotification("Non hai i permessi per modificare i parametri.", "error");
-    return;
-  }
-  const inputEl = document.getElementById("maxBookingsPerUser");
-  if (!inputEl) return;
-
-  const newMax = parseInt(inputEl.value);
-  if (isNaN(newMax) || newMax < 1) {
-    showNotification("Valore non valido.", "warn");
-    return;
-  }
-
-  apiPut("/api/admin/config", { maxBookingsPerUser: newMax })
-    .then(() => showNotification("Parametri di prenotazione salvati con successo.", "success"))
-    .catch(err => {
-      console.error("Errore salvataggio parametri prenotazione:", err);
-      showNotification("Errore durante il salvataggio dei parametri.", "error");
-    });
-}
-function loadFieldsConfig() {
-  apiGet("/api/admin/fields")
-    .then(data => {
-      if (data.fields && Array.isArray(data.fields)) {
-        fieldsList = data.fields;
-      } else {
-        fieldsList = [];
-      }
-      displayFieldConfigInAdmin();
-      populateAllFields();
-    })
-    .catch(err => {
-      console.error("Errore caricamento campi:", err);
-    });
-}
-function displayFieldConfigInAdmin() {
-  const container = document.getElementById("field-config-container");
-  if (!container) return;
-  container.innerHTML = "";
-
-  fieldsList.forEach((fieldObj, index) => {
-    const rowDiv = document.createElement("div");
-    rowDiv.style.marginBottom = "6px";
-    rowDiv.innerHTML = `
-      <input type="text" placeholder="ID campo" value="${fieldObj.id}" id="fieldId-${index}" style="width: 120px;">
-      <input type="text" placeholder="Nome visualizzato" value="${fieldObj.name}" id="fieldName-${index}" style="width: 180px;">
-      <button onclick="removeFieldRow(${index})">Rimuovi</button>
-    `;
-    container.appendChild(rowDiv);
+    target.classList.add('hidden');
+    title.style.cursor = 'pointer';
+    title.addEventListener('click', ()=> target.classList.toggle('hidden'));
   });
 }
-function addFieldRow() {
-  fieldsList.push({ id: "", name: "" });
-  displayFieldConfigInAdmin();
-}
-function removeFieldRow(index) {
-  fieldsList.splice(index, 1);
-  displayFieldConfigInAdmin();
-}
-function saveFieldConfig() {
-  if (!(currentUser && currentUser.role === "admin")) {
-    showNotification("Non hai i permessi per modificare i campi.", "error");
-    return;
-  }
 
-  const container = document.getElementById("field-config-container");
-  if (!container) return;
-
-  fieldsList.forEach((fieldObj, index) => {
-    const idEl = document.getElementById(`fieldId-${index}`);
-    const nameEl = document.getElementById(`fieldName-${index}`);
-    fieldObj.id = idEl ? idEl.value.trim() : "";
-    fieldObj.name = nameEl ? nameEl.value.trim() : "";
-  });
-
-  const validFields = fieldsList.filter(f => f.id !== "" && f.name !== "");
-  apiPut("/api/admin/fields", { fields: validFields })
-    .then(() => {
-      showNotification("Configurazione campi salvata con successo.", "success");
-      loadFieldsConfig();
-    })
-    .catch(err => {
-      console.error("Errore salvataggio campi:", err);
-      showNotification("Errore durante il salvataggio dei campi.", "error");
-    });
-}
-
-/***********************
- *  INIT
- ***********************/
+// --- INIT ---
 document.addEventListener('DOMContentLoaded', () => {
   // all'avvio: utente NON loggato
   toggleSections(false);
@@ -1177,8 +1021,11 @@ document.addEventListener('DOMContentLoaded', () => {
     datePicker.value = today;
     datePicker.min = today;
     datePicker.addEventListener('change', () => {
-      // usa la versione con Express
+      lastLoadedDate = null;
       loadReservationsForSelectedDate();
+      if (currentUser && currentUser.role === "admin") {
+        loadAdminReservationsList();
+      }
     });
   }
 
@@ -1193,4 +1040,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Meteo emoji
   loadDailyWeather(6);
+
+  // Note admin
+  loadAdminNotes();
 });
