@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pagamento Riuscito</title>
+  <style>
+    body{font-family:Arial,sans-serif;text-align:center;margin:50px}
+    h1{color:green;font-size:1.8rem}
+    p,a{font-size:1rem}
+    a{color:blue;text-decoration:underline}
+  </style>
+</head>
+<body>
+  <h1>Pagamento Completato ✅</h1>
+  <p id="message">Aggiornando i crediti...</p>
+  <p>Verrai reindirizzato alla homepage tra pochi secondi...</p>
+  <a href="https://prenotazione-campi-b7176.web.app/">Torna alla Home</a>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      let user = urlParams.get("user") || localStorage.getItem("pendingUser");
+      let credits = urlParams.get("credits") || localStorage.getItem("pendingCredits");
+
+      if (user && credits) {
+        try {
+          // GET crediti correnti (STESSO PROGETTO)
+          const getRes = await fetch(
+            `https://firestore.googleapis.com/v1/projects/prenotazione-campi-b7176/databases/(default)/documents/users/${user}`
+          );
+          const userDoc = await getRes.json();
+
+          let currentCredits = 0;
+          if (userDoc.fields && userDoc.fields.credits) {
+            currentCredits = parseInt(userDoc.fields.credits.integerValue);
+          }
+
+          const totalCredits = currentCredits + parseInt(credits,10);
+
+          // PATCH crediti (STESSO PROGETTO)
+          await fetch(
+            `https://firestore.googleapis.com/v1/projects/prenotazione-campi-b7176/databases/(default)/documents/users/${user}?updateMask.fieldPaths=credits`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fields: { credits: { integerValue: totalCredits } } })
+            }
+          );
+
+          document.getElementById("message").innerText =
+            `Pagamento completato! Ora hai ${totalCredits} crediti.`;
+
+          setTimeout(() => {
+            window.location.href = "https://prenotazione-campi-b7176.web.app/";
+          }, 3000);
+
+          localStorage.removeItem("pendingUser");
+          localStorage.removeItem("pendingCredits");
+        } catch (e) {
+          console.error(e);
+          document.getElementById("message").innerText = "Errore nell'aggiornamento dei crediti.";
+        }
+      } else {
+        document.getElementById("message").innerText = "Errore nei parametri del pagamento.";
+      }
+    });
+  </script>
+</body>
+</html>
