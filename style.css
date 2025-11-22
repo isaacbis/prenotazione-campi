@@ -1054,15 +1054,22 @@ body.admin-visible .notes-section {
    LOGIN: allinea immagini e didascalie
    ========================================= */
 
-/* Contenitori sopra/sotto: centrati e a griglia */
+/* Contenitori sopra/sotto: TUTTE LE IMMAGINI IN RIGA ORIZZONTALE */
 #login-images-container-top,
 #login-images-container-bottom {
   display: flex;
-  flex-wrap: wrap;             /* vanno a capo se manca spazio */
-  justify-content: center;     /* tutto centrato orizzontalmente */
-  align-items: flex-start;     
+  flex-wrap: nowrap;           /* NON vanno a capo */
+  justify-content: flex-start; /* partono da sinistra, ma restano in riga */
+  align-items: flex-start;
   gap: 10px;
-  overflow-x: visible;         /* niente scroll orizzontale brutto */
+  overflow-x: auto;            /* se non ci stanno, scorri in orizzontale */
+  padding-bottom: 6px;         /* un filo di spazio sotto per la scrollbar */
+}
+
+/* nasconde la scrollbar su iOS/alcuni browser, ma resta scrollabile */
+#login-images-container-top::-webkit-scrollbar,
+#login-images-container-bottom::-webkit-scrollbar {
+  display: none;
 }
 
 /* Ogni figura: colonna immagine + testo centrati */
