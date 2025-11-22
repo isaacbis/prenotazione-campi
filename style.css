@@ -710,3 +710,33 @@ body.admin-visible #admin-area {
     max-width: 640px;
   }
 }
+/* =========================================================
+   OVERRIDE: METEO + IMMAGINI UTENTE IN VERTICALE
+   ========================================================= */
+
+/* Meteo: una chip per riga, a tutta larghezza */
+.hourly-weather {
+  display: flex;
+  flex-direction: column;   /* verticale */
+  gap: 6px;
+}
+
+.hour-chip {
+  width: 100%;              /* occupa tutta la riga */
+  flex-direction: row;      /* icona + testo in riga */
+  justify-content: space-between;
+  padding: 6px 10px;
+}
+
+/* Immagini nella parte utente (dopo il login) sempre in colonna */
+#app-images-container {
+  display: flex;
+  flex-direction: column !important;  /* anche su schermi grandi */
+  align-items: flex-start;
+  gap: 6px;
+}
+
+#app-images-container a img {
+  width: 46px;              /* simili come altezza alle chip meteo */
+  border-radius: 18px;
+}
