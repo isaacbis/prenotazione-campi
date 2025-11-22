@@ -1050,3 +1050,42 @@ body.admin-visible .notes-section {
   margin-top: 10px;
   text-align: center;
 }
+/* =========================================
+   LOGIN: allinea immagini e didascalie
+   ========================================= */
+
+/* Contenitori sopra/sotto: centrati e a griglia */
+#login-images-container-top,
+#login-images-container-bottom {
+  display: flex;
+  flex-wrap: wrap;             /* vanno a capo se manca spazio */
+  justify-content: center;     /* tutto centrato orizzontalmente */
+  align-items: flex-start;     
+  gap: 10px;
+  overflow-x: visible;         /* niente scroll orizzontale brutto */
+}
+
+/* Ogni figura: colonna immagine + testo centrati */
+.img-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  width: 90px;                 /* larghezza fissa per allineare testo */
+  margin: 4px;
+}
+
+/* Immagine centrata dentro la figura */
+.img-caption img {
+  display: block;
+  margin: 0 auto;
+}
+
+/* Testo più leggibile e ben centrato */
+.img-caption figcaption {
+  width: 100%;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  margin-top: 4px;
+}
